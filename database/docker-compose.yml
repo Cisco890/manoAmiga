@@ -1,0 +1,33 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: crm_colegio_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: crm_colegio
+      POSTGRES_USER: crm_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - crm_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crm_user -d crm_colegio"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  tooling:
+    image: node:24-alpine
+    working_dir: /app
+    profiles: ["tools"]
+    environment:
+      DATABASE_URL: postgresql://crm_user:${POSTGRES_PASSWORD}@postgres:5432/crm_colegio?schema=public
+    volumes:
+      - ./:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  crm_postgres_data:

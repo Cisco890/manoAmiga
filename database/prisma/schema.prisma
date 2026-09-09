@@ -1,0 +1,806 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum AcademicCycleStatus {
+  PLANNED
+  ACTIVE
+  CLOSED
+}
+
+enum GradeLevel {
+  PRE_PRIMARY
+  PRIMARY
+  SECONDARY
+  OTHER
+}
+
+enum ApplicationType {
+  NEW_ENROLLMENT
+  RE_ENROLLMENT
+  TRANSFER
+}
+
+enum EnrollmentStatus {
+  DRAFT
+  PENDING_REVIEW
+  INCOMPLETE
+  APPROVED
+  REJECTED
+  CLOSED
+  CANCELLED
+}
+
+enum StudentStatus {
+  ACTIVE
+  INACTIVE
+  GRADUATED
+  WITHDRAWN
+}
+
+enum Sex {
+  MALE
+  FEMALE
+  NOT_SPECIFIED
+}
+
+enum GuardianRelationship {
+  MOTHER
+  FATHER
+  TUTOR
+  GRANDPARENT
+  SIBLING
+  OTHER
+}
+
+enum MaritalStatus {
+  MARRIED
+  PARTNERSHIP
+  SINGLE
+  SEPARATED
+  DIVORCED
+  WIDOWED
+  NOT_SPECIFIED
+}
+
+enum Laterality {
+  LEFT
+  RIGHT
+  AMBIDEXTROUS
+  NOT_SPECIFIED
+}
+
+enum ReligionType {
+  CATHOLIC
+  NON_PRACTICING_CATHOLIC
+  OTHER
+  NOT_SPECIFIED
+}
+
+enum SponsorType {
+  INDIVIDUAL
+  ORGANIZATION
+}
+
+enum SponsorshipStatus {
+  PENDING
+  ACTIVE
+  PAUSED
+  ENDED
+  CANCELLED
+}
+
+enum DonationFrequency {
+  ONE_TIME
+  MONTHLY
+}
+
+enum DonationStatus {
+  PENDING
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+enum DocumentType {
+  ENROLLMENT_FORM
+  SPONSOR_AUTHORIZATION
+  STUDENT_ID_CARD
+}
+
+enum DocumentStatus {
+  GENERATED
+  SIGNED
+  PRINTED
+  VOID
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+}
+
+enum UserTokenType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  VIEW
+  EXPORT
+  LOGIN
+  LOGOUT
+  GENERATE
+  PRINT
+}
+
+model School {
+  id           String   @id @default(uuid()) @db.Uuid
+  code         String   @unique @db.VarChar(30)
+  name         String   @db.VarChar(160)
+  legalName    String?  @map("legal_name") @db.VarChar(200)
+  logoPath     String?  @map("logo_path") @db.VarChar(500)
+  email        String?  @db.VarChar(254)
+  phone        String?  @db.VarChar(30)
+  website      String?  @db.VarChar(250)
+  address      String?  @db.Text
+  municipality String?  @db.VarChar(100)
+  department   String?  @db.VarChar(100)
+  country      String   @default("Guatemala") @db.VarChar(100)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  academicCycles AcademicCycle[]
+  grades         Grade[]
+  students       Student[]
+  users          User[]
+  settings       SystemSetting[]
+
+  @@map("schools")
+}
+
+model AcademicCycle {
+  id        String              @id @default(uuid()) @db.Uuid
+  schoolId  String              @map("school_id") @db.Uuid
+  name      String              @db.VarChar(50)
+  year      Int
+  startDate DateTime            @map("start_date") @db.Date
+  endDate   DateTime            @map("end_date") @db.Date
+  status    AcademicCycleStatus @default(PLANNED)
+  createdAt DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  school      School         @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  sections    ClassSection[]
+  enrollments Enrollment[]
+
+  @@unique([schoolId, year])
+  @@index([schoolId, status])
+  @@map("academic_cycles")
+}
+
+model Grade {
+  id           String     @id @default(uuid()) @db.Uuid
+  schoolId     String     @map("school_id") @db.Uuid
+  code         String     @db.VarChar(30)
+  name         String     @db.VarChar(100)
+  level        GradeLevel
+  displayOrder Int        @map("display_order")
+  minAge       Int?       @map("min_age")
+  maxAge       Int?       @map("max_age")
+  active       Boolean    @default(true)
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  school      School         @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  sections    ClassSection[]
+  enrollments Enrollment[]
+
+  @@unique([schoolId, code])
+  @@index([schoolId, level, displayOrder])
+  @@map("grades")
+}
+
+model ClassSection {
+  id              String   @id @default(uuid()) @db.Uuid
+  academicCycleId String   @map("academic_cycle_id") @db.Uuid
+  gradeId         String   @map("grade_id") @db.Uuid
+  name            String   @db.VarChar(30)
+  teacherName     String?  @map("teacher_name") @db.VarChar(160)
+  room            String?  @db.VarChar(50)
+  capacity        Int?
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  academicCycle AcademicCycle @relation(fields: [academicCycleId], references: [id], onDelete: Restrict)
+  grade         Grade         @relation(fields: [gradeId], references: [id], onDelete: Restrict)
+  enrollments   Enrollment[]
+
+  @@unique([academicCycleId, gradeId, name])
+  @@index([academicCycleId, gradeId])
+  @@map("class_sections")
+}
+
+model Address {
+  id           String   @id @default(uuid()) @db.Uuid
+  lot          String?  @db.VarChar(30)
+  block        String?  @db.VarChar(30)
+  sector       String?  @db.VarChar(80)
+  zone         String?  @db.VarChar(20)
+  neighborhood String?  @db.VarChar(120)
+  village      String?  @db.VarChar(120)
+  municipality String?  @db.VarChar(100)
+  department   String?  @db.VarChar(100)
+  country      String   @default("Guatemala") @db.VarChar(100)
+  fullAddress  String?  @map("full_address") @db.Text
+  reference    String?  @db.Text
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  students  Student[]  @relation("StudentAddress")
+  guardians Guardian[] @relation("GuardianAddress")
+
+  @@map("addresses")
+}
+
+model Student {
+  id            String        @id @default(uuid()) @db.Uuid
+  schoolId      String        @map("school_id") @db.Uuid
+  studentCode   String        @map("student_code") @db.VarChar(40)
+  givenNames    String        @map("given_names") @db.VarChar(120)
+  firstSurname  String        @map("first_surname") @db.VarChar(80)
+  secondSurname String?       @map("second_surname") @db.VarChar(80)
+  usualName     String?       @map("usual_name") @db.VarChar(120)
+  searchName    String        @map("search_name") @db.VarChar(300)
+  birthPlace    String?       @map("birth_place") @db.VarChar(150)
+  birthDate     DateTime?     @map("birth_date") @db.Date
+  cuiEncrypted  String?       @map("cui_encrypted") @db.Text
+  cuiHash       String?       @unique @map("cui_hash") @db.VarChar(64)
+  homePhone     String?       @map("home_phone") @db.VarChar(30)
+  sex           Sex           @default(NOT_SPECIFIED)
+  status        StudentStatus @default(ACTIVE)
+  addressId     String?       @map("address_id") @db.Uuid
+  notes         String?       @db.Text
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt     DateTime?     @map("deleted_at") @db.Timestamptz(3)
+
+  school        School              @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  address       Address?            @relation("StudentAddress", fields: [addressId], references: [id], onDelete: SetNull)
+  enrollments   Enrollment[]
+  guardianLinks StudentGuardian[]
+  photos        StudentPhoto[]
+  sponsorships  Sponsorship[]
+  documents     GeneratedDocument[]
+
+  @@unique([schoolId, studentCode])
+  @@index([schoolId, status])
+  @@index([firstSurname, secondSurname, givenNames])
+  @@index([searchName])
+  @@map("students")
+}
+
+model Guardian {
+  id                    String        @id @default(uuid()) @db.Uuid
+  givenNames            String        @map("given_names") @db.VarChar(120)
+  firstSurname          String        @map("first_surname") @db.VarChar(80)
+  secondSurname         String?       @map("second_surname") @db.VarChar(80)
+  marriedSurname        String?       @map("married_surname") @db.VarChar(80)
+  searchName            String        @map("search_name") @db.VarChar(350)
+  birthPlace            String?       @map("birth_place") @db.VarChar(150)
+  birthDate             DateTime?     @map("birth_date") @db.Date
+  maritalStatus         MaritalStatus @default(NOT_SPECIFIED) @map("marital_status")
+  dpiEncrypted          String?       @map("dpi_encrypted") @db.Text
+  dpiHash               String?       @unique @map("dpi_hash") @db.VarChar(64)
+  dpiIssuedMunicipality String?       @map("dpi_issued_municipality") @db.VarChar(100)
+  dpiIssuedDepartment   String?       @map("dpi_issued_department") @db.VarChar(100)
+  homePhone             String?       @map("home_phone") @db.VarChar(30)
+  mobilePhone           String?       @map("mobile_phone") @db.VarChar(30)
+  phoneCarrier          String?       @map("phone_carrier") @db.VarChar(60)
+  primaryEmail          String?       @map("primary_email") @db.VarChar(254)
+  secondaryEmail        String?       @map("secondary_email") @db.VarChar(254)
+  addressId             String?       @map("address_id") @db.Uuid
+  workplaceName         String?       @map("workplace_name") @db.VarChar(180)
+  workplacePhone        String?       @map("workplace_phone") @db.VarChar(30)
+  occupation            String?       @db.VarChar(120)
+  educationLevel        String?       @map("education_level") @db.VarChar(120)
+  religion              ReligionType  @default(NOT_SPECIFIED)
+  otherReligion         String?       @map("other_religion") @db.VarChar(120)
+  baptized              Boolean?
+  firstCommunion        Boolean?      @map("first_communion")
+  confirmed             Boolean?
+  marriedByChurch       Boolean?      @map("married_by_church")
+  active                Boolean       @default(true)
+  notes                 String?       @db.Text
+  createdAt             DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt             DateTime?     @map("deleted_at") @db.Timestamptz(3)
+
+  address      Address?          @relation("GuardianAddress", fields: [addressId], references: [id], onDelete: SetNull)
+  studentLinks StudentGuardian[]
+
+  @@index([firstSurname, secondSurname, givenNames])
+  @@index([searchName])
+  @@map("guardians")
+}
+
+model StudentGuardian {
+  id                            String               @id @default(uuid()) @db.Uuid
+  studentId                     String               @map("student_id") @db.Uuid
+  guardianId                    String               @map("guardian_id") @db.Uuid
+  relationship                  GuardianRelationship
+  customRelationship            String?              @map("custom_relationship") @db.VarChar(80)
+  livesWithStudent              Boolean              @default(false) @map("lives_with_student")
+  primaryContact                Boolean              @default(false) @map("primary_contact")
+  legalRepresentative           Boolean              @default(false) @map("legal_representative")
+  authorizedForSchoolProcedures Boolean              @default(false) @map("authorized_for_school_procedures")
+  active                        Boolean              @default(true)
+  startDate                     DateTime             @default(now()) @map("start_date") @db.Date
+  endDate                       DateTime?            @map("end_date") @db.Date
+  createdAt                     DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                     DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  student  Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  guardian Guardian @relation(fields: [guardianId], references: [id], onDelete: Restrict)
+
+  @@unique([studentId, guardianId, relationship])
+  @@index([guardianId, active])
+  @@index([studentId, primaryContact])
+  @@map("student_guardians")
+}
+
+model Enrollment {
+  id                         String           @id @default(uuid()) @db.Uuid
+  studentId                  String           @map("student_id") @db.Uuid
+  academicCycleId            String           @map("academic_cycle_id") @db.Uuid
+  gradeId                    String           @map("grade_id") @db.Uuid
+  classSectionId             String?          @map("class_section_id") @db.Uuid
+  applicationType            ApplicationType  @map("application_type")
+  requestDate                DateTime         @default(now()) @map("request_date") @db.Date
+  status                     EnrollmentStatus @default(DRAFT)
+  messageContactName         String?          @map("message_contact_name") @db.VarChar(160)
+  messageContactPhone        String?          @map("message_contact_phone") @db.VarChar(30)
+  messageContactRelationship String?          @map("message_contact_relationship") @db.VarChar(80)
+  mayLeaveAlone              Boolean          @default(false) @map("may_leave_alone")
+  signerName                 String?          @map("signer_name") @db.VarChar(160)
+  signerRelationship         String?          @map("signer_relationship") @db.VarChar(80)
+  signedAt                   DateTime?        @map("signed_at") @db.Timestamptz(3)
+  approvedAt                 DateTime?        @map("approved_at") @db.Timestamptz(3)
+  approvedByUserId           String?          @map("approved_by_user_id") @db.Uuid
+  rejectionReason            String?          @map("rejection_reason") @db.Text
+  notes                      String?          @db.Text
+  createdAt                  DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                  DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  student           Student             @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  academicCycle     AcademicCycle       @relation(fields: [academicCycleId], references: [id], onDelete: Restrict)
+  grade             Grade               @relation(fields: [gradeId], references: [id], onDelete: Restrict)
+  classSection      ClassSection?       @relation(fields: [classSectionId], references: [id], onDelete: SetNull)
+  approvedBy        User?               @relation("EnrollmentApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  householdProfile  HouseholdProfile?
+  medicalProfile    MedicalProfile?
+  religiousProfile  ReligiousProfile?
+  authorizedPickups AuthorizedPickup[]
+  documents         GeneratedDocument[]
+
+  @@unique([studentId, academicCycleId])
+  @@index([academicCycleId, gradeId, status])
+  @@index([classSectionId])
+  @@map("enrollments")
+}
+
+model HouseholdProfile {
+  id                    String   @id @default(uuid()) @db.Uuid
+  enrollmentId          String   @unique @map("enrollment_id") @db.Uuid
+  livesWithMother       Boolean  @default(false) @map("lives_with_mother")
+  livesWithFather       Boolean  @default(false) @map("lives_with_father")
+  livesWithSiblings     Boolean  @default(false) @map("lives_with_siblings")
+  livesWithUncles       Boolean  @default(false) @map("lives_with_uncles")
+  livesWithFriends      Boolean  @default(false) @map("lives_with_friends")
+  livesWithGrandparents Boolean  @default(false) @map("lives_with_grandparents")
+  livesWithOther        Boolean  @default(false) @map("lives_with_other")
+  otherDetails          String?  @map("other_details") @db.VarChar(250)
+  householdSize         Int?     @map("household_size")
+  notes                 String?  @db.Text
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  enrollment Enrollment       @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  siblings   StudentSibling[]
+
+  @@map("household_profiles")
+}
+
+model StudentSibling {
+  id                   String   @id @default(uuid()) @db.Uuid
+  householdProfileId   String   @map("household_profile_id") @db.Uuid
+  name                 String?  @db.VarChar(160)
+  sex                  Sex      @default(NOT_SPECIFIED)
+  ageAtRegistration    Int?     @map("age_at_registration")
+  enrolledAtThisSchool Boolean? @map("enrolled_at_this_school")
+  notes                String?  @db.Text
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  householdProfile HouseholdProfile @relation(fields: [householdProfileId], references: [id], onDelete: Cascade)
+
+  @@index([householdProfileId])
+  @@map("student_siblings")
+}
+
+model MedicalProfile {
+  id                       String     @id @default(uuid()) @db.Uuid
+  enrollmentId             String     @unique @map("enrollment_id") @db.Uuid
+  bloodType                String?    @map("blood_type") @db.VarChar(10)
+  bloodTypeUnknown         Boolean    @default(false) @map("blood_type_unknown")
+  hasDiseaseOrAllergy      Boolean    @default(false) @map("has_disease_or_allergy")
+  diseaseOrAllergyDetails  String?    @map("disease_or_allergy_details") @db.Text
+  hasMedicationAllergy     Boolean    @default(false) @map("has_medication_allergy")
+  medicationAllergyDetails String?    @map("medication_allergy_details") @db.Text
+  vaccinationsComplete     Boolean?   @map("vaccinations_complete")
+  missingVaccines          String?    @map("missing_vaccines") @db.Text
+  laterality               Laterality @default(NOT_SPECIFIED)
+  emergencyMedicalNotes    String?    @map("emergency_medical_notes") @db.Text
+  createdAt                DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  @@map("medical_profiles")
+}
+
+model ReligiousProfile {
+  id                            String       @id @default(uuid()) @db.Uuid
+  enrollmentId                  String       @unique @map("enrollment_id") @db.Uuid
+  religion                      ReligionType @default(NOT_SPECIFIED)
+  otherReligion                 String?      @map("other_religion") @db.VarChar(120)
+  baptized                      Boolean?
+  firstCommunion                Boolean?     @map("first_communion")
+  confirmed                     Boolean?
+  wantsFirstCommunionCatechesis Boolean?     @map("wants_first_communion_catechesis")
+  notes                         String?      @db.Text
+  createdAt                     DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                     DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  @@map("religious_profiles")
+}
+
+model AuthorizedPickup {
+  id                  String   @id @default(uuid()) @db.Uuid
+  enrollmentId        String   @map("enrollment_id") @db.Uuid
+  fullName            String   @map("full_name") @db.VarChar(160)
+  relationship        String   @db.VarChar(80)
+  identifierEncrypted String?  @map("identifier_encrypted") @db.Text
+  identifierHash      String?  @map("identifier_hash") @db.VarChar(64)
+  phone               String?  @db.VarChar(30)
+  sortOrder           Int      @map("sort_order")
+  active              Boolean  @default(true)
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  @@unique([enrollmentId, sortOrder])
+  @@index([enrollmentId, active])
+  @@map("authorized_pickups")
+}
+
+model StudentPhoto {
+  id               String   @id @default(uuid()) @db.Uuid
+  studentId        String   @map("student_id") @db.Uuid
+  storagePath      String   @map("storage_path") @db.VarChar(500)
+  fileName         String   @map("file_name") @db.VarChar(255)
+  mimeType         String   @map("mime_type") @db.VarChar(100)
+  fileSizeBytes    Int?     @map("file_size_bytes")
+  checksumSha256   String?  @map("checksum_sha256") @db.VarChar(64)
+  cropData         Json?    @map("crop_data") @db.JsonB
+  capturedAt       DateTime @default(now()) @map("captured_at") @db.Timestamptz(3)
+  isActive         Boolean  @default(true) @map("is_active")
+  uploadedByUserId String?  @map("uploaded_by_user_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  student    Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  uploadedBy User?   @relation("PhotoUploadedBy", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([studentId, isActive])
+  @@map("student_photos")
+}
+
+model Sponsor {
+  id               String      @id @default(uuid()) @db.Uuid
+  type             SponsorType @default(INDIVIDUAL)
+  givenNames       String?     @map("given_names") @db.VarChar(120)
+  firstSurname     String?     @map("first_surname") @db.VarChar(80)
+  secondSurname    String?     @map("second_surname") @db.VarChar(80)
+  organizationName String?     @map("organization_name") @db.VarChar(200)
+  searchName       String      @map("search_name") @db.VarChar(350)
+  birthday         DateTime?   @db.Date
+  email            String?     @db.VarChar(254)
+  phone            String?     @db.VarChar(30)
+  active           Boolean     @default(true)
+  notes            String?     @db.Text
+  createdAt        DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt        DateTime?   @map("deleted_at") @db.Timestamptz(3)
+
+  receiptProfile SponsorReceiptProfile?
+  sponsorships   Sponsorship[]
+
+  @@index([searchName])
+  @@index([active])
+  @@map("sponsors")
+}
+
+model SponsorReceiptProfile {
+  id            String   @id @default(uuid()) @db.Uuid
+  sponsorId     String   @unique @map("sponsor_id") @db.Uuid
+  receiptName   String   @map("receipt_name") @db.VarChar(200)
+  nitEncrypted  String?  @map("nit_encrypted") @db.Text
+  nitHash       String?  @unique @map("nit_hash") @db.VarChar(64)
+  fiscalAddress String?  @map("fiscal_address") @db.Text
+  receiptEmail  String?  @map("receipt_email") @db.VarChar(254)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  sponsor Sponsor @relation(fields: [sponsorId], references: [id], onDelete: Cascade)
+
+  @@map("sponsor_receipt_profiles")
+}
+
+model Sponsorship {
+  id        String            @id @default(uuid()) @db.Uuid
+  sponsorId String            @map("sponsor_id") @db.Uuid
+  studentId String            @map("student_id") @db.Uuid
+  startDate DateTime          @map("start_date") @db.Date
+  endDate   DateTime?         @map("end_date") @db.Date
+  status    SponsorshipStatus @default(PENDING)
+  notes     String?           @db.Text
+  createdAt DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  sponsor   Sponsor              @relation(fields: [sponsorId], references: [id], onDelete: Restrict)
+  student   Student              @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  donations DonationCommitment[]
+  documents GeneratedDocument[]
+
+  @@index([studentId, status])
+  @@index([sponsorId, status])
+  @@index([startDate, endDate])
+  @@map("sponsorships")
+}
+
+model DonationCommitment {
+  id                      String            @id @default(uuid()) @db.Uuid
+  sponsorshipId           String            @map("sponsorship_id") @db.Uuid
+  amount                  Decimal           @db.Decimal(12, 2)
+  currency                String            @default("GTQ") @db.Char(3)
+  frequency               DonationFrequency
+  startDate               DateTime          @map("start_date") @db.Date
+  endDate                 DateTime?         @map("end_date") @db.Date
+  status                  DonationStatus    @default(PENDING)
+  paymentProvider         String?           @map("payment_provider") @db.VarChar(100)
+  paymentReference        String?           @map("payment_reference") @db.VarChar(255)
+  cardBrand               String?           @map("card_brand") @db.VarChar(30)
+  cardLastFour            String?           @map("card_last_four") @db.Char(4)
+  authorizationAcceptedAt DateTime?         @map("authorization_accepted_at") @db.Timestamptz(3)
+  createdAt               DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  sponsorship Sponsorship @relation(fields: [sponsorshipId], references: [id], onDelete: Restrict)
+
+  @@index([sponsorshipId, status])
+  @@index([status, startDate])
+  @@map("donation_commitments")
+}
+
+model DocumentTemplate {
+  id             String       @id @default(uuid()) @db.Uuid
+  type           DocumentType
+  name           String       @db.VarChar(160)
+  version        Int
+  templatePath   String       @map("template_path") @db.VarChar(500)
+  checksumSha256 String?      @map("checksum_sha256") @db.VarChar(64)
+  configuration  Json?        @db.JsonB
+  isActive       Boolean      @default(false) @map("is_active")
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  documents GeneratedDocument[]
+
+  @@unique([type, version])
+  @@index([type, isActive])
+  @@map("document_templates")
+}
+
+model GeneratedDocument {
+  id                String         @id @default(uuid()) @db.Uuid
+  type              DocumentType
+  status            DocumentStatus @default(GENERATED)
+  studentId         String?        @map("student_id") @db.Uuid
+  enrollmentId      String?        @map("enrollment_id") @db.Uuid
+  sponsorshipId     String?        @map("sponsorship_id") @db.Uuid
+  templateId        String         @map("template_id") @db.Uuid
+  storagePath       String         @map("storage_path") @db.VarChar(500)
+  fileName          String         @map("file_name") @db.VarChar(255)
+  mimeType          String         @default("application/pdf") @map("mime_type") @db.VarChar(100)
+  checksumSha256    String?        @map("checksum_sha256") @db.VarChar(64)
+  dataSnapshot      Json           @map("data_snapshot") @db.JsonB
+  generatedByUserId String?        @map("generated_by_user_id") @db.Uuid
+  generatedAt       DateTime       @default(now()) @map("generated_at") @db.Timestamptz(3)
+  signedAt          DateTime?      @map("signed_at") @db.Timestamptz(3)
+  printedAt         DateTime?      @map("printed_at") @db.Timestamptz(3)
+  voidedAt          DateTime?      @map("voided_at") @db.Timestamptz(3)
+  voidReason        String?        @map("void_reason") @db.Text
+  createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  student     Student?         @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  enrollment  Enrollment?      @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
+  sponsorship Sponsorship?     @relation(fields: [sponsorshipId], references: [id], onDelete: SetNull)
+  template    DocumentTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  generatedBy User?            @relation("DocumentGeneratedBy", fields: [generatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([studentId, type])
+  @@index([enrollmentId, type])
+  @@index([sponsorshipId, type])
+  @@index([generatedAt])
+  @@map("generated_documents")
+}
+
+model User {
+  id                  String     @id @default(uuid()) @db.Uuid
+  schoolId            String     @map("school_id") @db.Uuid
+  email               String     @unique @db.VarChar(254)
+  passwordHash        String     @map("password_hash") @db.VarChar(255)
+  displayName         String     @map("display_name") @db.VarChar(160)
+  status              UserStatus @default(ACTIVE)
+  failedLoginAttempts Int        @default(0) @map("failed_login_attempts")
+  lockedUntil         DateTime?  @map("locked_until") @db.Timestamptz(3)
+  lastLoginAt         DateTime?  @map("last_login_at") @db.Timestamptz(3)
+  createdAt           DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt           DateTime?  @map("deleted_at") @db.Timestamptz(3)
+
+  school              School              @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  roles               UserRole[]
+  sessions            UserSession[]
+  tokens              UserToken[]
+  approvedEnrollments Enrollment[]        @relation("EnrollmentApprovedBy")
+  uploadedPhotos      StudentPhoto[]      @relation("PhotoUploadedBy")
+  generatedDocuments  GeneratedDocument[] @relation("DocumentGeneratedBy")
+  auditEvents         AuditEvent[]        @relation("AuditEventUser")
+  updatedSettings     SystemSetting[]     @relation("SettingUpdatedBy")
+
+  @@index([schoolId, status])
+  @@map("users")
+}
+
+model UserSession {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  refreshTokenHash String    @unique @map("refresh_token_hash") @db.VarChar(128)
+  expiresAt        DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(3)
+  ipAddress        String?   @map("ip_address") @db.VarChar(64)
+  userAgent        String?   @map("user_agent") @db.Text
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@map("user_sessions")
+}
+
+model UserToken {
+  id        String        @id @default(uuid()) @db.Uuid
+  userId    String        @map("user_id") @db.Uuid
+  type      UserTokenType
+  tokenHash String        @unique @map("token_hash") @db.VarChar(128)
+  expiresAt DateTime      @map("expires_at") @db.Timestamptz(3)
+  usedAt    DateTime?     @map("used_at") @db.Timestamptz(3)
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type, expiresAt])
+  @@map("user_tokens")
+}
+
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid
+  code        String   @unique @db.VarChar(50)
+  name        String   @db.VarChar(100)
+  description String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  users       UserRole[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid()) @db.Uuid
+  code        String   @unique @db.VarChar(100)
+  name        String   @db.VarChar(120)
+  description String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model UserRole {
+  userId     String   @map("user_id") @db.Uuid
+  roleId     String   @map("role_id") @db.Uuid
+  assignedAt DateTime @default(now()) @map("assigned_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  roleId       String @map("role_id") @db.Uuid
+  permissionId String @map("permission_id") @db.Uuid
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+model AuditEvent {
+  id         BigInt      @id @default(autoincrement())
+  userId     String?     @map("user_id") @db.Uuid
+  action     AuditAction
+  entityType String      @map("entity_type") @db.VarChar(100)
+  entityId   String?     @map("entity_id") @db.VarChar(64)
+  beforeData Json?       @map("before_data") @db.JsonB
+  afterData  Json?       @map("after_data") @db.JsonB
+  ipAddress  String?     @map("ip_address") @db.VarChar(64)
+  userAgent  String?     @map("user_agent") @db.Text
+  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User? @relation("AuditEventUser", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId, createdAt])
+  @@index([userId, createdAt])
+  @@map("audit_events")
+}
+
+model SystemSetting {
+  id              String   @id @default(uuid()) @db.Uuid
+  schoolId        String   @map("school_id") @db.Uuid
+  key             String   @db.VarChar(100)
+  value           Json     @db.JsonB
+  description     String?  @db.Text
+  updatedByUserId String?  @map("updated_by_user_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  school    School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  updatedBy User?  @relation("SettingUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([schoolId, key])
+  @@map("system_settings")
+}

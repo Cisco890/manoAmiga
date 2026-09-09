@@ -1,0 +1,8 @@
+database/.env
+database/node_modules/
+database/src/generated/
+database/*.backup
+front/node_modules/
+front/dist/
+*.log
+

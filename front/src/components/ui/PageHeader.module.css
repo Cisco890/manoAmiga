@@ -1,0 +1,47 @@
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  flex: 1;
+}
+
+.title {
+  font-size: 28px;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.description {
+  color: var(--color-text-muted);
+  font-size: 15px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+@media (max-width: 720px) {
+  .title {
+    font-size: 24px;
+  }
+
+  .actions {
+    width: 100%;
+  }
+
+  .actions :global(.btn) {
+    width: 100%;
+  }
+}

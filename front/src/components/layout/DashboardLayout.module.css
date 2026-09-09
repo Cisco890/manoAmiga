@@ -1,0 +1,41 @@
+.shell {
+  min-height: 100vh;
+  background: var(--color-bg);
+}
+
+.backdrop {
+  display: none;
+}
+
+.mainColumn {
+  margin-left: var(--sidebar-width);
+  min-width: 0;
+}
+
+.content {
+  padding: var(--space-6);
+}
+
+.contentInner {
+  max-width: var(--content-max-width);
+}
+
+@media (max-width: 1023px) {
+  .mainColumn {
+    margin-left: 0;
+  }
+
+  .backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    border: 0;
+    background: rgba(22, 50, 79, 0.45);
+    cursor: pointer;
+  }
+
+  .content {
+    padding: var(--space-4);
+  }
+}

@@ -1,0 +1,20 @@
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+@media (max-width: 720px) {
+  .toolbar :global(.field),
+  .toolbar :global(.select),
+  .toolbar :global(.btn) {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .toolbar :global(.label) {
+    width: 100%;
+  }
+}
