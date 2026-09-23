@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secrets:
+    name: Secretos en el repositorio
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: node scripts/check-secrets.mjs
+
+  backend:
+    name: Backend (API y base de datos)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: database
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: crm_colegio
+          POSTGRES_USER: crm_user
+          POSTGRES_PASSWORD: ci_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U crm_user -d crm_colegio"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Base temporal del runner; se destruye al terminar el job.
+      DATABASE_URL: postgresql://crm_user:ci_password@localhost:5432/crm_colegio?schema=public
+      JWT_ACCESS_SECRET: secreto-exclusivo-de-ci-sin-uso-real-32-bytes
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: database/package-lock.json
+      - run: npm ci
+      - run: npm run db:validate
+      - run: npm run db:generate
+      - run: npm run typecheck
+      - name: Aplicar migraciones y seed
+        run: |
+          npm run db:deploy
+          npm run db:seed
+      - run: npm test
+
+  frontend:
+    name: Frontend (lint, pruebas y build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: front
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: front/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - name: Revisar que el bundle no contenga secretos
+        run: node ../scripts/check-secrets.mjs dist

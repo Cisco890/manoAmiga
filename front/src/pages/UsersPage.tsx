@@ -7,7 +7,6 @@ import {
   PowerOff,
   RefreshCw,
   Search,
-  ShieldCheck,
   Users,
 } from 'lucide-react';
 import {

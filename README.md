@@ -516,3 +516,65 @@ Antes de desplegar:
 - Aplique migraciones con `npm run db:deploy`; no use `prisma db push`.
 - Mantenga respaldos cifrados de PostgreSQL fuera del repositorio.
 - No reutilice contraseñas de desarrollo en producción.
+
+## Ambientes
+
+El proyecto usa tres ambientes. Cada uno tiene su propia base de datos y sus propios secretos, y nunca se comparten entre ambientes.
+
+| Ambiente | Base de datos | API | Frontend |
+| --- | --- | --- | --- |
+| Desarrollo | PostgreSQL en Docker (o un proyecto Supabase de desarrollo) | `npm run dev` | `npm run dev` (proxy `/api`) |
+| Staging | Proyecto Supabase de staging | Servidor de staging, `NODE_ENV=production` | `npm run build:staging` |
+| Producción | Proyecto Supabase de producción | Servidor de producción, `NODE_ENV=production` | `npm run build` |
+
+### Dónde vive cada variable
+
+| Variable | Dónde se usa | ¿Secreta? |
+| --- | --- | --- |
+| `DATABASE_URL`, `DIRECT_URL`, `POSTGRES_PASSWORD` | Backend | Sí |
+| `JWT_ACCESS_SECRET` | Backend | Sí. Debe ser distinta en cada ambiente. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Backend (Storage) | Sí. Omite todas las reglas de seguridad de Supabase. |
+| `SUPABASE_URL`, `SUPABASE_STORAGE_BUCKET`, `SUPABASE_ANON_KEY` | Backend | No, pero solo el backend las necesita. |
+| `JWT_ISSUER`, `JWT_AUDIENCE`, `FRONTEND_ORIGIN`, `PORT`, `NODE_ENV` | Backend | No |
+| `VITE_API_URL` | Frontend (queda dentro del bundle) | No |
+
+Reglas:
+
+- Los valores reales viven en archivos locales ignorados por Git (`database/.env`, `database/.env.staging`, `front/.env.staging.local`, etc.) o en el gestor de secretos del servidor donde se despliega. Solo se versionan las plantillas `.env.example`.
+- El frontend solo recibe variables `VITE_*`, y solo la URL de la API. `vite.config.ts` detiene el build si una variable `VITE_*` tiene nombre de secreto (`SECRET`, `SERVICE_ROLE`, `PASSWORD`, `JWT`, etc.).
+- `scripts/check-secrets.mjs` falla si se versiona un archivo `.env`, si el repositorio contiene claves reales (`sb_secret_…`, JWT `service_role`, llaves privadas) o si el bundle compilado contiene referencias a `service_role`, cadenas de conexión o variables secretas del backend. Puede ejecutarlo localmente:
+
+  ```bash
+  npm --prefix front run build
+  node scripts/check-secrets.mjs front/dist
+  ```
+
+### Ejecutar comandos contra otro ambiente
+
+El backend lee `database/.env` por defecto. Para usar otro archivo, indique su ruta en `DOTENV_CONFIG_PATH`. Por ejemplo, para aplicar las migraciones en staging desde `database/`:
+
+```bash
+# bash
+DOTENV_CONFIG_PATH=.env.staging npm run db:deploy
+```
+
+```powershell
+# PowerShell
+$env:DOTENV_CONFIG_PATH = ".env.staging"; npm run db:deploy; Remove-Item Env:DOTENV_CONFIG_PATH
+```
+
+En el frontend, Vite elige el archivo según el modo: `npm run build:staging` lee `.env.staging.local` y `npm run build` lee `.env.production.local`.
+
+## Integración continua
+
+`.github/workflows/ci.yml` se ejecuta con GitHub Actions en cada push a cualquier rama y en cada pull request. Tiene tres jobs:
+
+| Job | Qué comprueba |
+| --- | --- |
+| Secretos en el repositorio | `node scripts/check-secrets.mjs` sobre los archivos versionados. |
+| Backend | `npm ci`, validación del esquema Prisma, `typecheck`, migraciones y seed sobre un PostgreSQL 17 temporal, y `npm test`. |
+| Frontend | `npm ci`, `lint`, `npm test`, `build` y revisión de secretos en `front/dist`. |
+
+El CI no usa secretos reales: la base de datos y `JWT_ACCESS_SECRET` son temporales y solo existen durante la ejecución.
+
+Para impedir que se integren cambios con el CI en rojo, active en GitHub **Settings → Branches → Branch protection rules** para `main` la opción *Require status checks to pass before merging* y seleccione los tres jobs.
