@@ -41,4 +41,5 @@ Las solicitudes incluyen el JWT automáticamente. Si el token de acceso vence, e
 - `npm run dev` — servidor de desarrollo
 - `npm run build` — comprobación de TypeScript y empaquetado
 - `npm run lint` — análisis estático con Oxlint
+- `npm test` — pruebas con Vitest del inicio de sesión y la protección de rutas
 - `npm run preview` — vista previa de la build

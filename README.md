@@ -251,6 +251,24 @@ Abra `http://localhost:5173` en el navegador e inicie sesión con una cuenta cre
 - El cierre de sesión revoca la sesión en PostgreSQL.
 - Cinco intentos fallidos bloquean temporalmente la cuenta durante 15 minutos.
 - Restablecer una contraseña revoca todas las sesiones existentes de ese usuario.
+- Si la sesión no es válida, cualquier vista protegida redirige a `/login`. Después de iniciar sesión se vuelve a la vista solicitada.
+
+### Contrato del JWT de acceso
+
+`POST /api/auth/login` y `POST /api/auth/refresh` responden `{ accessToken, expiresIn, user }`. El `accessToken` es un JWT HS256 firmado con `JWT_ACCESS_SECRET` que contiene:
+
+| Claim | Contenido |
+| --- | --- |
+| `sub` | Id del usuario (UUID). |
+| `sid` | Id de la sesión en `user_sessions`. Al revocar la sesión, el token deja de ser válido aunque no haya vencido. |
+| `schoolId` | Id del colegio del usuario. |
+| `name` | Nombre visible. |
+| `roles` | Códigos de rol, por ejemplo `["ADMIN"]` o `["COLLABORATOR"]`. |
+| `permissions` | Códigos de permiso del rol, por ejemplo `student.read` o `user.manage`. |
+| `iss` / `aud` | `JWT_ISSUER` y `JWT_AUDIENCE`. |
+| `iat` / `exp` | Emisión y vencimiento (15 minutos). |
+
+El frontend usa `roles` y `permissions` solo para decidir qué vistas y acciones muestra. La API vuelve a validar la firma, la sesión y el permiso en cada solicitud. Las pruebas `database/test/auth-api.test.ts` y `front/src/auth/authFlow.test.tsx` verifican este contrato y la protección de rutas.
 
 Rutas disponibles:
 
@@ -304,7 +322,7 @@ Ejecute estos comandos desde `database/`:
 | `npm run db:create-collaborator` | Crea una cuenta colaboradora. |
 | `npm run db:set-password` | Restablece la contraseña de una cuenta. |
 | `npm run storage:setup` | Crea y verifica el bucket privado de Supabase Storage. |
-| `npm test` | Ejecuta las pruebas de base de datos y JWT. |
+| `npm test` | Ejecuta las pruebas de base de datos, autenticación y almacenamiento. |
 
 ## Comandos del frontend
 
@@ -315,6 +333,7 @@ Ejecute estos comandos desde `front/`:
 | `npm run dev` | Inicia el servidor de desarrollo. |
 | `npm run build` | Comprueba TypeScript y genera la compilación de producción. |
 | `npm run lint` | Ejecuta el análisis estático. |
+| `npm test` | Ejecuta las pruebas de autenticación y protección de rutas. |
 | `npm run preview` | Sirve localmente la compilación de producción. |
 
 ## Pruebas y validación
@@ -332,6 +351,7 @@ Frontend:
 ```bash
 cd front
 npm run lint
+npm test
 npm run build
 ```
 

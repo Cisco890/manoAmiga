@@ -17,8 +17,14 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const requestedDestination = (location.state as LoginLocationState | null)?.from;
+  const destination =
+    requestedDestination?.startsWith('/') && !requestedDestination.startsWith('//')
+      ? requestedDestination
+      : '/';
 
-  if (status === 'authenticated') return <Navigate to="/" replace />;
+  // El login actualiza la sesión antes de navegar; ambos caminos deben llevar al mismo destino.
+  if (status === 'authenticated') return <Navigate to={destination} replace />;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -26,11 +32,6 @@ export function LoginPage() {
     setError('');
     try {
       await login(email, password);
-      const requestedDestination = (location.state as LoginLocationState | null)?.from;
-      const destination =
-        requestedDestination?.startsWith('/') && !requestedDestination.startsWith('//')
-          ? requestedDestination
-          : '/';
       navigate(destination, { replace: true });
     } catch (requestError) {
       setError(

@@ -1,4 +1,4 @@
-import { createBrowserRouter } from 'react-router-dom';
+import { createBrowserRouter, type RouteObject } from 'react-router-dom';
 import { AdminRoute, ProtectedRoute } from '../auth/RouteGuards.tsx';
 import { DashboardLayout } from '../components/layout/DashboardLayout.tsx';
 import { DashboardPage } from '../pages/DashboardPage.tsx';
@@ -13,7 +13,7 @@ import { SponsorsPage } from '../pages/SponsorsPage.tsx';
 import { StudentsPage } from '../pages/StudentsPage.tsx';
 import { UsersPage } from '../pages/UsersPage.tsx';
 
-export const router = createBrowserRouter([
+export const routes: RouteObject[] = [
   {
     path: '/login',
     element: <LoginPage />,
@@ -44,4 +44,6 @@ export const router = createBrowserRouter([
       },
     ],
   },
-]);
+];
+
+export const router = createBrowserRouter(routes);
