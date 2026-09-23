@@ -37,7 +37,7 @@ test("el seed crea los catálogos mínimos sin duplicados", async () => {
   assert.ok(Number(counts.cycles) >= 1);
   assert.equal(Number(counts.grades), 12);
   assert.ok(Number(counts.sections) >= 12);
-  assert.equal(Number(counts.roles), 6);
+  assert.equal(Number(counts.roles), 2);
   assert.equal(Number(counts.permissions), 17);
   assert.equal(Number(counts.settings), 3);
 });
@@ -111,4 +111,3 @@ test("no existen columnas para PAN completo ni CVV", async () => {
 
   assert.deepEqual(result.rows, []);
 });
-

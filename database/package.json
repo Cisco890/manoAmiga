@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "typecheck": "tsc --noEmit",
     "db:format": "prisma format",
     "db:validate": "prisma validate",
     "db:generate": "prisma generate",
@@ -12,7 +15,9 @@
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "db:create-admin": "tsx prisma/create-admin.ts",
-    "test": "tsx --test test/**/*.test.ts"
+    "db:create-collaborator": "tsx prisma/create-collaborator.ts",
+    "db:set-password": "tsx prisma/set-password.ts",
+    "test": "tsx --test test/*.test.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.0",
@@ -29,4 +34,3 @@
     "typescript": "^5.9.2"
   }
 }
-

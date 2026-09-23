@@ -56,28 +56,18 @@ const permissions = [
 
 const roles = [
   ["ADMIN", "Administración", "Usuarios, permisos y configuración"],
-  ["SECRETARY", "Secretaría", "Alumnos, responsables e inscripciones"],
-  ["SPONSORSHIP", "Padrinazgo", "Padrinos, padrinazgos y donaciones"],
-  ["PRINTING", "Impresión", "Generación e impresión de carnés y documentos"],
-  ["MANAGEMENT", "Dirección", "Dashboard e informes"],
-  ["AUDITOR", "Auditoría", "Consulta de auditoría sin edición"],
+  ["COLLABORATOR", "Colaborador", "Consulta de información sin permisos de creación ni administración"],
 ] as const;
 
 const rolePermissions: Record<string, readonly string[]> = {
   ADMIN: permissions.map(([code]) => code),
-  SECRETARY: [
+  COLLABORATOR: [
+    "dashboard.read",
     "student.read",
-    "student.write",
-    "student.medical.read",
     "enrollment.read",
-    "enrollment.write",
-    "enrollment.approve",
-    "document.generate",
+    "sponsor.read",
+    "donation.read",
   ],
-  SPONSORSHIP: ["student.read", "sponsor.read", "sponsor.write", "donation.read", "donation.write", "document.generate"],
-  PRINTING: ["student.read", "enrollment.read", "document.generate", "document.print"],
-  MANAGEMENT: ["student.read", "enrollment.read", "sponsor.read", "donation.read", "dashboard.read", "export.data"],
-  AUDITOR: ["student.read", "enrollment.read", "sponsor.read", "donation.read", "audit.read"],
 };
 
 async function main() {
@@ -161,6 +151,16 @@ async function main() {
       create: { code, name, description },
     });
 
+    const allowedPermissionIds = rolePermissions[code].map((permissionCode) => {
+      const permissionId = permissionIds.get(permissionCode);
+      if (!permissionId) throw new Error(`Permiso desconocido: ${permissionCode}`);
+      return permissionId;
+    });
+
+    await prisma.rolePermission.deleteMany({
+      where: { roleId: role.id, permissionId: { notIn: allowedPermissionIds } },
+    });
+
     for (const permissionCode of rolePermissions[code]) {
       const permissionId = permissionIds.get(permissionCode);
       if (!permissionId) throw new Error(`Permiso desconocido: ${permissionCode}`);
@@ -173,6 +173,13 @@ async function main() {
     }
   }
 
+  await prisma.role.deleteMany({
+    where: {
+      code: { notIn: roles.map(([code]) => code) },
+      users: { none: {} },
+    },
+  });
+
   console.info(`Seed completado para ${school.name}, ciclo ${cycle.year}`);
 }
 
@@ -184,4 +191,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-
