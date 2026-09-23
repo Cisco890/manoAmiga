@@ -303,6 +303,7 @@ Ejecute estos comandos desde `database/`:
 | `npm run db:create-admin` | Crea una cuenta administradora. |
 | `npm run db:create-collaborator` | Crea una cuenta colaboradora. |
 | `npm run db:set-password` | Restablece la contraseña de una cuenta. |
+| `npm run storage:setup` | Crea y verifica el bucket privado de Supabase Storage. |
 | `npm test` | Ejecuta las pruebas de base de datos y JWT. |
 
 ## Comandos del frontend
@@ -408,6 +409,81 @@ Los comandos de creación no reemplazan usuarios existentes. Use `npm run db:set
 ### La cuenta está bloqueada
 
 Espere 15 minutos o ejecute el restablecimiento de contraseña. El comando elimina el bloqueo y los intentos fallidos.
+
+## Base de datos en Supabase
+
+Staging y producción usan Supabase como PostgreSQL administrado y como almacenamiento privado de archivos. El esquema se aplica con las mismas migraciones de Prisma que se usan localmente, por lo que la base es idéntica en todos los ambientes. En desarrollo puede seguir usando PostgreSQL con Docker.
+
+El frontend nunca se conecta a Supabase: todas las lecturas y escrituras pasan por la API.
+
+### 1. Obtener las credenciales
+
+En el panel del proyecto de Supabase:
+
+1. **Connect → Session pooler**: copie la cadena de conexión. Tiene la forma `postgresql://postgres.REF:CLAVE@aws-0-REGION.pooler.supabase.com:5432/postgres`. El pooler en modo sesión funciona con IPv4; la conexión directa `db.REF.supabase.co` solo funciona con IPv6.
+2. **Project Settings → Database → SSL Configuration**: descargue el certificado y guárdelo como `database/certs/supabase-ca.crt`. Es un certificado público de la CA de Supabase y no contiene secretos.
+3. **Project Settings → API Keys**: copie la clave `service_role` (o la clave secreta `sb_secret_…`). Opcionalmente copie la clave `anon` (o `sb_publishable_…`) para verificar el bucket.
+
+Si la contraseña de la base contiene caracteres especiales, codifíquela para URL (por ejemplo `@` → `%40`).
+
+### 2. Configurar `database/.env`
+
+```env
+DATABASE_URL=postgresql://postgres.REF:CLAVE@aws-0-REGION.pooler.supabase.com:5432/postgres?schema=public&sslmode=verify-full&sslrootcert=certs/supabase-ca.crt
+DIRECT_URL=postgresql://postgres.REF:CLAVE@aws-0-REGION.pooler.supabase.com:5432/postgres?schema=public&sslmode=require
+SUPABASE_URL=https://REF.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=clave_service_role
+SUPABASE_ANON_KEY=clave_anon_opcional
+SUPABASE_STORAGE_BUCKET=crm-privado
+```
+
+- `DATABASE_URL` la usa la API. `sslmode=verify-full` comprueba el certificado del servidor con el archivo descargado.
+- `DIRECT_URL` la usa Prisma CLI para aplicar migraciones. Si no está definida, Prisma usa `DATABASE_URL`.
+- `SUPABASE_SERVICE_ROLE_KEY` omite todas las reglas de seguridad de Supabase. Solo puede existir en el backend; nunca en el frontend, en variables `VITE_*` ni en el repositorio.
+
+### 3. Aplicar el esquema
+
+Desde `database/`:
+
+```bash
+npm run db:deploy
+npm run db:seed
+npm run db:create-admin   # con las variables ADMIN_* descritas arriba
+```
+
+Use siempre `db:deploy` contra Supabase. No ejecute `db:migrate` (`prisma migrate dev`) contra Supabase: necesita una base temporal y puede pedir reiniciar el esquema. Cree las migraciones nuevas contra el PostgreSQL local de Docker y después aplíquelas con `db:deploy`.
+
+No ejecute `npm test` contra la base de producción, porque las pruebas crean y eliminan usuarios temporales.
+
+### 4. Crear y verificar el bucket privado
+
+```bash
+npm run storage:setup
+```
+
+El comando es idempotente:
+
+- Crea el bucket `SUPABASE_STORAGE_BUCKET` (por defecto `crm-privado`) con `public = false`, un límite de 10 MB y solo archivos JPEG, PNG, WebP y PDF. Si el bucket ya existía como público, lo cambia a privado.
+- Sube un archivo de prueba y confirma que **no** se puede descargar por la URL pública. Si `SUPABASE_ANON_KEY` está definida, confirma también que la clave anónima no tiene acceso.
+- Elimina el archivo de prueba y termina con error si alguna comprobación falla.
+
+Las fotografías de alumnos y los documentos generados se guardarán en este bucket. `student_photos.storage_path` y `generated_documents.storage_path` contienen la ruta del objeto dentro del bucket. La API los entregará mediante URLs firmadas de corta duración.
+
+### Seguridad a nivel de filas (RLS)
+
+Supabase publica automáticamente el esquema `public` mediante su API REST. La migración `20260923120000_enable_row_level_security` activa RLS sin políticas en todas las tablas, por lo que las claves `anon` y `authenticated` no pueden leer ni modificar datos por esa vía. La API se conecta como propietaria de las tablas y no se ve afectada.
+
+Cada migración que cree una tabla nueva debe incluir:
+
+```sql
+ALTER TABLE "nombre_tabla" ENABLE ROW LEVEL SECURITY;
+```
+
+La prueba `todas las tablas del esquema public tienen RLS activo` falla si alguna tabla queda sin RLS.
+
+### Error `self-signed certificate in certificate chain`
+
+La API no encuentra el certificado de Supabase. Compruebe que `database/certs/supabase-ca.crt` exista y que ejecute los comandos desde `database/`, porque `sslrootcert` es una ruta relativa.
 
 ## Producción
 

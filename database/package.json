@@ -17,6 +17,7 @@
     "db:create-admin": "tsx prisma/create-admin.ts",
     "db:create-collaborator": "tsx prisma/create-collaborator.ts",
     "db:set-password": "tsx prisma/set-password.ts",
+    "storage:setup": "tsx prisma/setup-storage.ts",
     "test": "tsx --test test/*.test.ts"
   },
   "dependencies": {

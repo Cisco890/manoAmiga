@@ -101,6 +101,17 @@ test("las búsquedas por nombre usan índices trigram y pg_trgm", async () => {
   for (const { indexdef } of result.rows) assert.match(indexdef, /gin_trgm_ops/);
 });
 
+test("todas las tablas del esquema public tienen RLS activo", async () => {
+  const result = await pool.query<{ relname: string }>(`
+    SELECT c.relname
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND c.relkind = 'r' AND NOT c.relrowsecurity
+  `);
+
+  assert.deepEqual(result.rows.map(({ relname }) => relname), []);
+});
+
 test("no existen columnas para PAN completo ni CVV", async () => {
   const result = await pool.query<{ column_name: string }>(`
     SELECT column_name
