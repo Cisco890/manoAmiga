@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Prisma-generated client
+src/generated/
+
+# Builds, caches and test output
+dist/
+coverage/
+*.tsbuildinfo
+.cache/
+
+# Database backups and local databases
+*.backup
+*.dump
+*.sqlite
+*.sqlite3
+*.db
+
+# Logs and runtime files
+logs/
+*.log
+npm-debug.log*
+*.pid
+*.pid.lock
+
+# Temporary files
+*.tmp
+*.temp
+*~

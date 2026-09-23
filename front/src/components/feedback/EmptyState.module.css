@@ -12,5 +12,6 @@
 }
 
 .empty svg {
-  color: var(--color-disabled-text);
+  color: var(--color-blue);
+  opacity: 0.7;
 }

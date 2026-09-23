@@ -1,4 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
+import type { RoleCode } from '../auth/types.ts';
 import {
   ClipboardList,
   FileCheck,
@@ -16,6 +17,7 @@ export type NavigationItem = {
   path: string;
   icon: LucideIcon;
   description: string;
+  requiredRole?: RoleCode;
 };
 
 export type NavigationSection = {
@@ -89,12 +91,14 @@ export const navigationSections: NavigationSection[] = [
         path: '/usuarios',
         icon: UserCog,
         description: 'Administración de usuarios y roles del sistema',
+        requiredRole: 'ADMIN',
       },
       {
         label: 'Configuración',
         path: '/configuracion',
         icon: Settings,
         description: 'Parámetros generales del colegio y del sistema',
+        requiredRole: 'ADMIN',
       },
     ],
   },

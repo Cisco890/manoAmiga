@@ -1,4 +1,5 @@
 import { ClipboardList, HeartHandshake, UserPlus, Users } from 'lucide-react';
+import { useAuth } from '../auth/useAuth.ts';
 import { dashboardRoute } from '../config/navigation.ts';
 import { MetricCard } from '../components/ui/MetricCard.tsx';
 import { PageHeader } from '../components/ui/PageHeader.tsx';
@@ -7,6 +8,13 @@ import { EmptyTable } from '../components/ui/EmptyTable.tsx';
 import styles from './pageLayout.module.css';
 
 export function DashboardPage() {
+  const { can } = useAuth();
+  const showQuickActions =
+    can('student.write') ||
+    can('enrollment.write') ||
+    can('sponsor.write') ||
+    can('document.generate');
+
   return (
     <div className={styles.stack}>
       <PageHeader
@@ -38,26 +46,41 @@ export function DashboardPage() {
         </PlaceholderPanel>
       </section>
 
-      <section className={styles.bottom} aria-label="Resumen">
+      <section
+        className={[styles.bottom, showQuickActions ? '' : styles.bottomSingle]
+          .filter(Boolean)
+          .join(' ')}
+        aria-label="Resumen"
+      >
         <PlaceholderPanel title="Inscripciones recientes">
           <EmptyTable columns={['Alumno', 'Grado', 'Estado', 'Fecha']} framed={false} />
         </PlaceholderPanel>
-        <PlaceholderPanel title="Accesos rápidos">
-          <div className={styles.quickActions}>
-            <button type="button" className="btn" disabled>
-              Registrar alumno
-            </button>
-            <button type="button" className="btn" disabled>
-              Crear inscripción
-            </button>
-            <button type="button" className="btn" disabled>
-              Registrar padrino
-            </button>
-            <button type="button" className="btn" disabled>
-              Generar carné
-            </button>
-          </div>
-        </PlaceholderPanel>
+        {showQuickActions ? (
+          <PlaceholderPanel title="Accesos rápidos">
+            <div className={styles.quickActions}>
+              {can('student.write') ? (
+                <button type="button" className="btn" disabled>
+                  Registrar alumno
+                </button>
+              ) : null}
+              {can('enrollment.write') ? (
+                <button type="button" className="btn" disabled>
+                  Crear inscripción
+                </button>
+              ) : null}
+              {can('sponsor.write') ? (
+                <button type="button" className="btn" disabled>
+                  Registrar padrino
+                </button>
+              ) : null}
+              {can('document.generate') ? (
+                <button type="button" className="btn" disabled>
+                  Generar carné
+                </button>
+              ) : null}
+            </div>
+          </PlaceholderPanel>
+        ) : null}
       </section>
     </div>
   );

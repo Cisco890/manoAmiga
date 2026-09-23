@@ -1,4 +1,5 @@
 import { getRouteByPath } from '../config/navigation.ts';
+import { useAuth } from '../auth/useAuth.ts';
 import { DisabledToolbar } from '../components/ui/DisabledToolbar.tsx';
 import { PageHeader } from '../components/ui/PageHeader.tsx';
 import { PlaceholderPanel } from '../components/ui/PlaceholderPanel.tsx';
@@ -7,16 +8,18 @@ import styles from './pageLayout.module.css';
 const route = getRouteByPath('/fichas-inscripcion');
 
 export function EnrollmentFormsPage() {
+  const { can } = useAuth();
+
   return (
     <div className={styles.stack}>
       <PageHeader
         title={route?.label ?? 'Fichas de inscripción'}
         description={route?.description ?? ''}
-        actions={
+        actions={can('document.generate') ? (
           <button type="button" className="btn btnPrimary" disabled>
             Generar ficha
           </button>
-        }
+        ) : undefined}
       />
       <DisabledToolbar>
         <label className="label">

@@ -3,14 +3,26 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   box-shadow: var(--shadow-card);
-  padding: var(--space-5);
+  padding: clamp(18px, 2vw, 24px);
   min-width: 0;
 }
 
 .title {
   font-size: 16px;
-  font-weight: 700;
+  font-weight: 800;
   margin-bottom: var(--space-4);
+  color: var(--color-navy);
+  position: relative;
+  padding-left: var(--space-3);
+}
+
+.title::before {
+  content: '';
+  position: absolute;
+  inset: 2px auto 2px 0;
+  width: 3px;
+  border-radius: 99px;
+  background: var(--color-primary);
 }
 
 .body {

@@ -2,46 +2,43 @@
   display: flex;
   flex-direction: column;
   width: var(--sidebar-width);
-  background: var(--color-sidebar);
+  background:
+    radial-gradient(circle at 0 100%, rgba(75, 128, 163, 0.28), transparent 30%),
+    linear-gradient(165deg, var(--color-sidebar) 0%, var(--color-sidebar-deep) 100%);
   color: var(--color-sidebar-text);
   position: fixed;
   inset: 0 auto 0 0;
   z-index: 40;
+  box-shadow: 10px 0 36px rgba(29, 45, 90, 0.12);
+  transition: transform 220ms ease, visibility 220ms ease;
+}
+
+.sidebar::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 5px;
+  background: var(--color-primary);
 }
 
 .brand {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  min-height: var(--topbar-height);
-  padding: var(--space-4);
+  min-height: 112px;
+  padding: 24px 22px 18px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .logo {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.12);
-  flex-shrink: 0;
-}
-
-.brandText {
-  min-width: 0;
+  display: block;
+  width: 210px;
+  height: auto;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: #fff;
+  object-fit: contain;
   flex: 1;
-}
-
-.brandName {
-  font-size: 16px;
-  font-weight: 700;
-  color: #fff;
-}
-
-.brandHint {
-  font-size: 12px;
-  color: var(--color-sidebar-muted);
 }
 
 .closeButton {
@@ -53,19 +50,41 @@
   background: transparent;
   color: var(--color-sidebar-text);
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .nav {
   flex: 1;
   overflow-y: auto;
-  padding: var(--space-4) 0;
+  padding: var(--space-5) var(--space-2);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.footerMark {
+  width: 4px;
+  height: 36px;
+  border-radius: 99px;
+  background: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.footerTitle {
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
 }
 
 .version {
-  padding: var(--space-4) var(--space-5);
   font-size: 12px;
   color: var(--color-sidebar-muted);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 @media (max-width: 1023px) {
@@ -83,5 +102,9 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
+  }
+
+  .logo {
+    width: 176px;
   }
 }

@@ -1,8 +1,54 @@
-database/.env
-database/node_modules/
-database/src/generated/
-database/*.backup
-front/node_modules/
-front/dist/
-*.log
+# Dependencies
+**/node_modules/
 
+# Environment files and local secrets
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+# Builds, caches and test output
+**/dist/
+**/dist-ssr/
+**/.vite/
+**/coverage/
+*.tsbuildinfo
+.cache/
+
+# Generated backend code
+database/src/generated/
+
+# Logs and runtime files
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+*.pid
+*.pid.lock
+
+# Local databases and backups
+*.backup
+*.dump
+*.sqlite
+*.sqlite3
+*.db
+
+# Operating system and editor files
+.DS_Store
+Thumbs.db
+**/.idea/
+**/.vscode/*
+!**/.vscode/extensions.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Temporary files
+*.tmp
+*.temp
+*~

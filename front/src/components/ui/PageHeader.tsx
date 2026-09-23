@@ -12,6 +12,7 @@ export function PageHeader({ title, description, actions, extra }: PageHeaderPro
   return (
     <div className={styles.header}>
       <div className={styles.copy}>
+        <span className={styles.eyebrow}>Mano Amiga</span>
         <h1 className={styles.title}>{title}</h1>
         <p className={styles.description}>{description}</p>
         {extra}

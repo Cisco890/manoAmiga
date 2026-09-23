@@ -3,9 +3,22 @@
   align-items: center;
   gap: var(--space-4);
   min-height: var(--topbar-height);
-  padding: 0 var(--space-6);
+  padding: 0 clamp(20px, 3vw, 40px);
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.topbar::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  width: clamp(110px, 15vw, 220px);
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--color-primary));
 }
 
 .left {
@@ -13,6 +26,21 @@
   align-items: center;
   gap: var(--space-3);
   min-width: 0;
+}
+
+.heading {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.eyebrow {
+  color: var(--color-primary);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .menuButton {
@@ -27,8 +55,9 @@
 }
 
 .title {
-  font-size: 16px;
-  font-weight: 700;
+  margin-top: 4px;
+  font-size: 17px;
+  font-weight: 800;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -42,7 +71,7 @@
   height: 40px;
   padding: 0 var(--space-3);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius);
+  border-radius: 99px;
   background: var(--color-disabled-bg);
   color: var(--color-disabled-text);
   min-width: 220px;
@@ -76,16 +105,51 @@
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: var(--color-primary);
+  background: var(--color-navy);
   color: #fff;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
+  box-shadow: 0 0 0 3px rgba(75, 128, 163, 0.16);
 }
 
 .userName {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--color-text);
+}
+
+.userDetails {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.userRole {
+  margin-top: 3px;
+  color: var(--color-text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.logoutButton {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.logoutButton:hover {
+  border-color: rgba(219, 96, 21, 0.18);
+  color: var(--color-primary);
+  background: rgba(219, 96, 21, 0.07);
 }
 
 @media (max-width: 1023px) {
@@ -105,7 +169,7 @@
     display: none;
   }
 
-  .userName {
+  .userDetails {
     display: none;
   }
 }

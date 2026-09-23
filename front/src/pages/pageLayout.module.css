@@ -1,7 +1,7 @@
 .stack {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-5);
 }
 
 .metrics {
@@ -22,13 +22,19 @@
   gap: var(--space-4);
 }
 
+.bottomSingle {
+  grid-template-columns: 1fr !important;
+}
+
 .chartStub {
   display: grid;
   place-items: center;
   min-height: 220px;
-  border: 1px dashed var(--color-border);
+  border: 1px dashed #bdc9d8;
   border-radius: var(--radius);
-  background: var(--color-chart-stub);
+  background:
+    linear-gradient(180deg, transparent 94%, rgba(75, 128, 163, 0.09) 94%) 0 0 / 100% 44px,
+    var(--color-chart-stub);
   color: var(--color-text-muted);
   font-size: 14px;
   text-align: center;

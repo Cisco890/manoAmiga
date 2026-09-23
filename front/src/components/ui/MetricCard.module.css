@@ -5,6 +5,34 @@
   box-shadow: var(--shadow-card);
   padding: var(--space-5);
   min-width: 0;
+  position: relative;
+  overflow: hidden;
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--color-primary);
+}
+
+.card:nth-child(2)::before {
+  background: var(--color-teal);
+}
+
+.card:nth-child(3)::before {
+  background: var(--color-magenta);
+}
+
+.card:nth-child(4)::before {
+  background: var(--color-gold);
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-raised);
 }
 
 .icon {
@@ -14,8 +42,23 @@
   height: 36px;
   margin-bottom: var(--space-3);
   border-radius: var(--radius-sm);
-  background: #e8eef4;
-  color: var(--color-primary);
+  background: rgba(75, 128, 163, 0.12);
+  color: var(--color-blue);
+}
+
+.card:nth-child(2) .icon {
+  background: rgba(94, 163, 160, 0.13);
+  color: var(--color-teal);
+}
+
+.card:nth-child(3) .icon {
+  background: rgba(169, 54, 97, 0.11);
+  color: var(--color-magenta);
+}
+
+.card:nth-child(4) .icon {
+  background: rgba(212, 157, 73, 0.14);
+  color: #b37721;
 }
 
 .title {
@@ -27,7 +70,8 @@
 .value {
   margin-top: var(--space-2);
   font-size: 28px;
-  font-weight: 700;
+  font-weight: 800;
+  color: var(--color-navy);
   line-height: 1.2;
 }
 

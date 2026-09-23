@@ -1,15 +1,15 @@
 .section + .section {
-  margin-top: var(--space-5);
+  margin-top: var(--space-6);
 }
 
 .title {
-  padding: 0 var(--space-5);
+  padding: 0 var(--space-4);
   margin-bottom: var(--space-2);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--color-sidebar-muted);
+  color: #8fa4c5;
 }
 
 .items {
