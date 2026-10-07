@@ -256,6 +256,22 @@ Un alumno solo puede tener una inscripción activa (Borrador, Pendiente de revis
 
 La prueba `database/test/enrollment-constraint.test.ts` verifica el índice, los casos permitidos y la carrera entre dos transacciones.
 
+### Formulario por pasos y campos obligatorios
+
+La secretaría completa cada inscripción en Borrador o Incompleta con el botón **Completar formulario**. Cada paso se guarda como borrador (`PATCH /api/enrollments/:id/form`), así que el formulario puede llenarse en varias sesiones.
+
+| Paso | Campos obligatorios |
+| --- | --- |
+| Contacto y salida | Nombre, teléfono y parentesco del contacto para mensajes. Al menos una persona autorizada para recoger al alumno (máximo 3), salvo que pueda retirarse solo. |
+| Hogar | Con quién vive el alumno (al menos una opción; si marca "Otros", el detalle) y número de personas en el hogar. |
+| Salud | Tipo de sangre o "se desconoce". El detalle de enfermedades, alergias a medicamentos o vacunas pendientes cuando se marcan. |
+| Firma | Nombre y parentesco de quien firma. |
+
+- `GET /api/enrollments/:id/form` devuelve los datos guardados y `missingFields`: la lista de faltantes, cada uno con su paso y una etiqueta en español. El indicador de pasos y el paso **Revisar y enviar** usan esa lista.
+- La API no permite pasar a Pendiente de revisión con campos faltantes: responde `422` con `missingFields`. La validación vive en `database/src/school/enrollmentForm.ts` (`missingEnrollmentFields`) y se ejecuta dentro de la misma transacción del cambio de estado.
+- Ver y editar el formulario requiere `enrollment.write`, porque incluye datos médicos. Solo se edita en Borrador o Incompleta.
+- Pendiente para otra historia: encargados (padre, madre o tutor), perfil religioso y documento de identificación de las personas autorizadas, que debe guardarse cifrado.
+
 ### Aprobación, devolución y rechazo
 
 Solo los usuarios con el permiso `enrollment.approve` (hoy, `ADMIN`) deciden sobre una inscripción **Pendiente de revisión**, con `PATCH /api/enrollments/:id/status`:

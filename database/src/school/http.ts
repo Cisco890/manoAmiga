@@ -23,6 +23,12 @@ import {
   transitionEnrollmentStatus,
 } from "./enrollments";
 import {
+  getEnrollmentForm,
+  MissingFieldsError,
+  parseEnrollmentFormPatch,
+  saveEnrollmentForm,
+} from "./enrollmentForm";
+import {
   createStudent,
   getStudent,
   listStudents,
@@ -439,14 +445,40 @@ export async function handleSchoolRoutes(
       const nextStatus = body.status as EnrollmentStatus;
       // Aprobar, devolver o rechazar es una decisión de dirección; el resto, de secretaría.
       requirePermission(principal, isReviewStatus(nextStatus) ? "enrollment.approve" : "enrollment.write");
-      const data = await wrapDomain(() =>
-        transitionEnrollmentStatus(principal.schoolId, principal.id, enrollmentPath.id, nextStatus, {
+      let data;
+      try {
+        data = await transitionEnrollmentStatus(principal.schoolId, principal.id, enrollmentPath.id, nextStatus, {
           rejectionReason: typeof body.rejectionReason === "string" ? body.rejectionReason : null,
           notes: typeof body.notes === "string" ? body.notes : undefined,
-        }),
-      );
+        });
+      } catch (error) {
+        // 422 con la lista de campos faltantes para que la secretaría sepa qué completar.
+        if (error instanceof MissingFieldsError) {
+          sendJson(request, response, 422, { message: error.message, missingFields: error.missingFields });
+          return true;
+        }
+        return asDomainError(error);
+      }
       sendJson(request, response, 200, { data });
       return true;
+    }
+
+    if (enrollmentPath && enrollmentPath.tail.length === 1 && enrollmentPath.tail[0] === "form") {
+      const principal = await authenticatedPrincipal(request);
+      requirePermission(principal, "enrollment.write");
+      if (request.method === "GET") {
+        const data = await wrapDomain(() => getEnrollmentForm(principal.schoolId, enrollmentPath.id));
+        sendJson(request, response, 200, { data });
+        return true;
+      }
+      if (request.method === "PATCH") {
+        const body = await readJson(request);
+        const data = await wrapDomain(async () =>
+          saveEnrollmentForm(principal.schoolId, principal.id, enrollmentPath.id, parseEnrollmentFormPatch(body)),
+        );
+        sendJson(request, response, 200, { data });
+        return true;
+      }
     }
 
     return false;

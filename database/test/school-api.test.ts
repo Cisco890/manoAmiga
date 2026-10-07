@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import bcrypt from "bcryptjs";
 import { prisma } from "../src/prisma";
+import { completeEnrollmentForm } from "./support/schoolFixtures";
 
 process.env.JWT_ACCESS_SECRET = "secreto-de-integracion-con-mas-de-32-bytes";
 process.env.FRONTEND_ORIGIN = "http://localhost:5173";
@@ -79,6 +80,13 @@ const auth = (token: string) => ({
   "Content-Type": "application/json",
   Origin: "http://localhost:5173",
 });
+
+const completeForm = (token: string, enrollmentId: string) =>
+  fetch(`${baseUrl}/api/enrollments/${enrollmentId}/form`, {
+    method: "PATCH",
+    headers: auth(token),
+    body: JSON.stringify(completeEnrollmentForm),
+  });
 
 test("ciclos, grados, alumnos e inscripciones cumplen el flujo escolar", async () => {
   const token = await login();
@@ -160,6 +168,8 @@ test("ciclos, grados, alumnos e inscripciones cumplen el flujo escolar", async (
   createdEnrollmentIds.push(enrollmentBody.data.id);
   assert.equal(enrollmentBody.data.status, "DRAFT");
 
+  // MA-25: el formulario debe estar completo antes de enviarlo a revisión.
+  assert.equal((await completeForm(token, enrollmentBody.data.id)).status, 200);
   const pending = await fetch(`${baseUrl}/api/enrollments/${enrollmentBody.data.id}/status`, {
     method: "PATCH",
     headers: auth(token),
@@ -199,6 +209,7 @@ test("ciclos, grados, alumnos e inscripciones cumplen el flujo escolar", async (
   assert.equal(previous?.status, "CLOSED");
   assert.equal(previous?.gradeId, gradeA.id);
 
+  assert.equal((await completeForm(token, gradeChangeBody.data.id)).status, 200);
   const closed = await fetch(`${baseUrl}/api/enrollments/${gradeChangeBody.data.id}/status`, {
     method: "PATCH",
     headers: auth(token),

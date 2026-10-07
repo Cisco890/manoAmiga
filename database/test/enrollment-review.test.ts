@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import type { EnrollmentStatus } from "../src/generated/prisma/client";
 import { prisma } from "../src/prisma";
-import { createSchoolTestContext } from "./support/schoolFixtures";
+import { completeEnrollmentForm, createSchoolTestContext } from "./support/schoolFixtures";
 
 let context: Awaited<ReturnType<typeof createSchoolTestContext>>;
 let adminToken = "";
@@ -125,6 +125,11 @@ test("una inscripción devuelta vuelve a revisión antes de poder aprobarse", as
     status: "INCOMPLETE",
     rejectionReason: "Falta la firma del encargado",
   });
+  // MA-25: reenviar a revisión exige el formulario completo.
+  assert.equal(
+    (await context.api(adminToken, `/enrollments/${enrollment.id}/form`, "PATCH", completeEnrollmentForm)).status,
+    200,
+  );
 
   assert.equal((await changeStatus(adminToken, enrollment.id, { status: "APPROVED" })).status, 400);
   assert.equal(

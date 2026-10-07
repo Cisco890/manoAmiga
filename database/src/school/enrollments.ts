@@ -3,6 +3,7 @@ import type {
   EnrollmentStatus,
 } from "../generated/prisma/client";
 import { prisma } from "../prisma";
+import { assertEnrollmentFormComplete } from "./enrollmentForm";
 
 export const applicationTypes = ["NEW_ENROLLMENT", "RE_ENROLLMENT", "TRANSFER"] as const;
 export const enrollmentStatuses = [
@@ -351,6 +352,11 @@ export async function transitionEnrollmentStatus(
         : {};
 
   const updated = await prisma.$transaction(async (tx) => {
+    // MA-25: no se envía a revisión una inscripción con campos obligatorios vacíos.
+    if (nextStatus === "PENDING_REVIEW") {
+      await assertEnrollmentFormComplete(tx, schoolId, enrollmentId);
+    }
+
     // Actualización condicionada al estado leído: si otra persona ya cambió la inscripción
     // (por ejemplo, dos revisores a la vez), no se pisa su decisión.
     const { count } = await tx.enrollment.updateMany({

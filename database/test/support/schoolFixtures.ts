@@ -8,6 +8,20 @@ process.env.FRONTEND_ORIGIN = "http://localhost:5173";
 
 const password = "ClaveDePrueba-2026";
 
+/** Datos mínimos que completan todos los pasos obligatorios del formulario de inscripción. */
+export const completeEnrollmentForm = {
+  contact: {
+    messageContactName: "María López",
+    messageContactPhone: "5555-1234",
+    messageContactRelationship: "Madre",
+    mayLeaveAlone: false,
+    authorizedPickups: [{ fullName: "José López", relationship: "Abuelo", phone: "5555-9876" }],
+  },
+  household: { livesWithMother: true, householdSize: 4 },
+  medical: { bloodType: "O+", vaccinationsComplete: true },
+  signature: { signerName: "María López", signerRelationship: "Madre" },
+};
+
 /**
  * Levanta la API en un puerto libre y crea datos desechables (usuarios, ciclos y alumnos).
  * `cleanup()` elimina todo lo creado, incluidas las inscripciones de esos alumnos.

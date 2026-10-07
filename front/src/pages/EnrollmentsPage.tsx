@@ -25,6 +25,7 @@ import {
   enrollmentStatusLabels,
 } from '../lib/labels.ts';
 import { ReviewDecisionModal, type ReviewDecision } from '../components/school/ReviewDecisionModal.tsx';
+import { EnrollmentFormWizard } from '../components/school/EnrollmentFormWizard.tsx';
 import modalStyles from '../components/school/FormModal.module.css';
 import styles from './schoolShared.module.css';
 import pageStyles from './pageLayout.module.css';
@@ -59,6 +60,7 @@ export function EnrollmentsPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [decision, setDecision] = useState<{ enrollment: Enrollment; status: ReviewDecision } | null>(null);
+  const [wizard, setWizard] = useState<{ enrollment: Enrollment; step: 'contact' | 'review' } | null>(null);
   const showActions = canWrite || canApprove;
 
   // Aprobar, devolver o rechazar son decisiones de dirección; el resto, de secretaría.
@@ -117,6 +119,11 @@ export function EnrollmentsPage() {
     }
     if (next === 'INCOMPLETE' || next === 'REJECTED') {
       setDecision({ enrollment, status: next });
+      return;
+    }
+    // Enviar a revisión pasa por el último paso del formulario, que muestra lo que falta.
+    if (next === 'PENDING_REVIEW') {
+      setWizard({ enrollment, step: 'review' });
       return;
     }
     setBusyId(enrollment.id);
@@ -265,6 +272,15 @@ export function EnrollmentsPage() {
                     {showActions ? (
                       <td>
                         <div className={styles.rowActions}>
+                          {canWrite && (enrollment.status === 'DRAFT' || enrollment.status === 'INCOMPLETE') ? (
+                            <button
+                              type="button"
+                              className={`btn btnPrimary ${styles.btnSm}`}
+                              onClick={() => setWizard({ enrollment, step: 'contact' })}
+                            >
+                              Completar formulario
+                            </button>
+                          ) : null}
                           {enrollment.allowedNextStatuses
                             .filter(canMoveTo)
                             .map((next) => (
@@ -312,6 +328,19 @@ export function EnrollmentsPage() {
           </div>
         </div>
       </section>
+
+      {wizard ? (
+        <EnrollmentFormWizard
+          enrollment={wizard.enrollment}
+          initialStep={wizard.step}
+          request={request}
+          onClose={() => setWizard(null)}
+          onSubmitted={async () => {
+            setWizard(null);
+            await load();
+          }}
+        />
+      ) : null}
 
       {decision ? (
         <ReviewDecisionModal
