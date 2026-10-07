@@ -243,6 +243,19 @@ Abra `http://localhost:5173` en el navegador e inicie sesión con una cuenta cre
 - No ve Usuarios ni Configuración.
 - Tampoco puede ingresar a rutas administrativas escribiendo directamente la URL.
 
+## Inscripciones
+
+Flujo de estados: Borrador → Pendiente de revisión → Incompleta/Aprobada → Cerrada. Un cambio de grado en el mismo ciclo cierra la inscripción anterior y crea una nueva, para conservar el historial.
+
+### Una inscripción activa por alumno y ciclo
+
+Un alumno solo puede tener una inscripción activa (Borrador, Pendiente de revisión, Incompleta o Aprobada) en cada ciclo escolar. Las inscripciones Cerradas, Canceladas o Rechazadas no cuentan, así que no impiden crear una nueva.
+
+- **En la base de datos:** el índice único parcial `enrollments_one_open_per_student_cycle` (migración `20261007120000_enrollment_grade_history`) bloquea el duplicado, aunque los datos se inserten sin pasar por la API.
+- **En la API:** `POST /api/enrollments` responde `409` con un mensaje claro, por ejemplo *"El alumno ya tiene una inscripción activa en el ciclo 2026…"*. También ocurre si dos personas inscriben al mismo alumno al mismo tiempo: la validación previa de ambas pasa, pero el índice rechaza la segunda y la API traduce ese error.
+
+La prueba `database/test/enrollment-constraint.test.ts` verifica el índice, los casos permitidos y la carrera entre dos transacciones.
+
 ## Autenticación
 
 - El login utiliza correo y contraseña.

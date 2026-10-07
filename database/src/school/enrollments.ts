@@ -17,6 +17,28 @@ export const enrollmentStatuses = [
 
 const openStatuses: EnrollmentStatus[] = ["DRAFT", "PENDING_REVIEW", "INCOMPLETE", "APPROVED"];
 
+// Índice único parcial creado en la migración 20261007120000_enrollment_grade_history.
+// Es la garantía real de una sola inscripción activa por alumno y ciclo, incluso con
+// solicitudes simultáneas que pasan la validación previa al mismo tiempo.
+export const oneOpenEnrollmentIndex = "enrollments_one_open_per_student_cycle";
+
+function isOpenEnrollmentConflict(error: unknown) {
+  if (!error || typeof error !== "object" || (error as { code?: unknown }).code !== "P2002") {
+    return false;
+  }
+  return JSON.stringify((error as { meta?: unknown }).meta ?? {}).includes(oneOpenEnrollmentIndex);
+}
+
+function openEnrollmentConflict(cycleName: string) {
+  return Object.assign(
+    new Error(
+      `El alumno ya tiene una inscripción activa en el ciclo ${cycleName}. ` +
+        "Cancele o cierre la inscripción existente antes de crear otra.",
+    ),
+    { status: 409 },
+  );
+}
+
 const allowedTransitions: Record<EnrollmentStatus, EnrollmentStatus[]> = {
   DRAFT: ["PENDING_REVIEW", "CANCELLED"],
   PENDING_REVIEW: ["INCOMPLETE", "APPROVED", "REJECTED", "CANCELLED"],
@@ -165,7 +187,7 @@ export async function createEnrollment(
     }),
     prisma.academicCycle.findFirst({
       where: { id: input.academicCycleId, schoolId },
-      select: { id: true, status: true },
+      select: { id: true, name: true, status: true },
     }),
     prisma.grade.findFirst({
       where: { id: input.gradeId, schoolId, active: true },
@@ -180,6 +202,24 @@ export async function createEnrollment(
     throw Object.assign(new Error("No se puede inscribir en un ciclo cerrado"), { status: 400 });
   }
 
+  try {
+    return await createEnrollmentInTransaction(actorUserId, input);
+  } catch (error) {
+    if (isOpenEnrollmentConflict(error)) throw openEnrollmentConflict(cycle.name);
+    throw error;
+  }
+}
+
+function createEnrollmentInTransaction(
+  actorUserId: string,
+  input: {
+    studentId: string;
+    academicCycleId: string;
+    gradeId: string;
+    applicationType: ApplicationType;
+    notes?: string | null;
+  },
+) {
   return prisma.$transaction(async (tx) => {
     const openEnrollment = await tx.enrollment.findFirst({
       where: {
