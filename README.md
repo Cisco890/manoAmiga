@@ -69,16 +69,17 @@ JWT_ACCESS_SECRET=secreto_aleatorio_diferente_de_al_menos_32_bytes
 JWT_ISSUER=mano-amiga-api
 JWT_AUDIENCE=mano-amiga-web
 FRONTEND_ORIGIN=http://localhost:5173
-PORT=3000
+PORT=3001
 ```
 
 `POSTGRES_PASSWORD` debe coincidir con la contraseña incluida dentro de `DATABASE_URL`.
+Si el puerto `3000` ya está ocupado en su máquina, use `3001` u otro libre y alinee el proxy de Vite.
 
 No suba `database/.env` a GitHub. El archivo ya está excluido mediante `.gitignore`.
 
 ### URL de la API en el frontend
 
-Durante el desarrollo no es necesario crear `front/.env`: Vite redirige `/api` hacia `http://localhost:3000`.
+Durante el desarrollo no es necesario crear `front/.env`: Vite redirige `/api` hacia `http://localhost:3001`.
 
 Si la API está en otro dominio, copie el archivo de ejemplo y configure la URL:
 
@@ -202,12 +203,12 @@ cd database
 npm run dev
 ```
 
-La API queda disponible en `http://localhost:3000`.
+La API queda disponible en `http://localhost:3001` (o el valor de `PORT`).
 
 Compruebe su estado con:
 
 ```bash
-curl http://localhost:3000/api/health
+curl http://localhost:3001/api/health
 ```
 
 Respuesta esperada:
@@ -290,8 +291,8 @@ Los endpoints protegidos responden `401` cuando el JWT falta o es inválido, y `
 
 Con la API en ejecución están disponibles:
 
-- Swagger UI: `http://localhost:3000/api/docs`
-- OpenAPI JSON: `http://localhost:3000/api/openapi.json`
+- Swagger UI: `http://localhost:3001/api/docs`
+- OpenAPI JSON: `http://localhost:3001/api/openapi.json`
 
 Para probar el CRUD desde Swagger:
 

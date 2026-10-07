@@ -394,7 +394,9 @@ model Enrollment {
   authorizedPickups AuthorizedPickup[]
   documents         GeneratedDocument[]
 
-  @@unique([studentId, academicCycleId])
+  // Una sola inscripción abierta por alumno y ciclo (índice parcial en migración).
+  // Los cambios de grado cierran la anterior y crean otra, conservando el histórico.
+  @@index([studentId, academicCycleId, status])
   @@index([academicCycleId, gradeId, status])
   @@index([classSectionId])
   @@map("enrollments")

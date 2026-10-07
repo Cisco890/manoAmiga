@@ -6,6 +6,7 @@ export type PermissionCode =
   | 'student.write'
   | 'enrollment.read'
   | 'enrollment.write'
+  | 'enrollment.approve'
   | 'sponsor.read'
   | 'sponsor.write'
   | 'document.generate'

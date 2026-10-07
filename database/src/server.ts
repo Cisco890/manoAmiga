@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
 import { signAccessToken, verifyAccessToken, type AccessTokenClaims } from "./auth/jwt";
 import { openApiDocument, swaggerHtml } from "./openapi";
+import { handleSchoolRoutes } from "./school/http";
 
 const port = Number(process.env.PORT ?? 3000);
 const frontendOrigin = process.env.FRONTEND_ORIGIN ?? "http://localhost:5173";
@@ -813,6 +814,16 @@ async function route(request: IncomingMessage, response: ServerResponse) {
   if (userId && request.method === "DELETE") {
     return deactivateUser(request, response, userId);
   }
+  const handledSchoolRoute = await handleSchoolRoutes(request, response, url, {
+    sendJson,
+    readJson,
+    authenticatedPrincipal,
+    requirePermission: (principal, permission) => {
+      requirePermission(principal as Principal, permission);
+    },
+    HttpError,
+  });
+  if (handledSchoolRoute) return;
   throw new HttpError(404, "Ruta no encontrada");
 }
 
