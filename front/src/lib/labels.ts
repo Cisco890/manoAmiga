@@ -39,6 +39,20 @@ export const applicationTypeLabels: Record<ApplicationType, string> = {
   TRANSFER: 'Traslado',
 };
 
+/** Texto del botón que lleva una inscripción a cada estado. */
+export const enrollmentActionLabels: Record<EnrollmentStatus, string> = {
+  DRAFT: 'Volver a borrador',
+  PENDING_REVIEW: 'Enviar a revisión',
+  INCOMPLETE: 'Devolver para corrección',
+  APPROVED: 'Aprobar',
+  REJECTED: 'Rechazar',
+  CLOSED: 'Cerrar',
+  CANCELLED: 'Cancelar',
+};
+
+/** Estados a los que solo llega una decisión de dirección (permiso enrollment.approve). */
+export const enrollmentReviewStatuses: EnrollmentStatus[] = ['APPROVED', 'INCOMPLETE', 'REJECTED'];
+
 export const enrollmentStatusLabels: Record<EnrollmentStatus, string> = {
   DRAFT: 'Borrador',
   PENDING_REVIEW: 'Pendiente de revisión',

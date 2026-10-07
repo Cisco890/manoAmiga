@@ -20,8 +20,11 @@ import { PageHeader } from '../components/ui/PageHeader.tsx';
 import { getRouteByPath } from '../config/navigation.ts';
 import {
   applicationTypeLabels,
+  enrollmentActionLabels,
+  enrollmentReviewStatuses,
   enrollmentStatusLabels,
 } from '../lib/labels.ts';
+import { ReviewDecisionModal, type ReviewDecision } from '../components/school/ReviewDecisionModal.tsx';
 import modalStyles from '../components/school/FormModal.module.css';
 import styles from './schoolShared.module.css';
 import pageStyles from './pageLayout.module.css';
@@ -55,6 +58,12 @@ export function EnrollmentsPage() {
   const [error, setError] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [decision, setDecision] = useState<{ enrollment: Enrollment; status: ReviewDecision } | null>(null);
+  const showActions = canWrite || canApprove;
+
+  // Aprobar, devolver o rechazar son decisiones de dirección; el resto, de secretaría.
+  const canMoveTo = (next: EnrollmentStatus) =>
+    enrollmentReviewStatuses.includes(next) ? canApprove : canWrite;
 
   const filters = useMemo(
     () => ({
@@ -102,8 +111,12 @@ export function EnrollmentsPage() {
   }, [load]);
 
   async function changeStatus(enrollment: Enrollment, next: EnrollmentStatus) {
-    if (next === 'APPROVED' && !canApprove) {
-      setError('No tienes permiso para aprobar inscripciones.');
+    if (!canMoveTo(next)) {
+      setError('No tienes permiso para realizar esta acción.');
+      return;
+    }
+    if (next === 'INCOMPLETE' || next === 'REJECTED') {
+      setDecision({ enrollment, status: next });
       return;
     }
     setBusyId(enrollment.id);
@@ -189,6 +202,19 @@ export function EnrollmentsPage() {
               ))}
             </select>
           </label>
+          {canApprove ? (
+            <button
+              type="button"
+              className={`btn ${styles.btnSm}`}
+              aria-pressed={status === 'PENDING_REVIEW'}
+              onClick={() => {
+                setPage(1);
+                setStatus((current) => (current === 'PENDING_REVIEW' ? '' : 'PENDING_REVIEW'));
+              }}
+            >
+              {status === 'PENDING_REVIEW' ? 'Ver todas' : 'Pendientes de revisión'}
+            </button>
+          ) : null}
         </div>
 
         {error ? <p className={styles.error}>{error}</p> : null}
@@ -208,7 +234,7 @@ export function EnrollmentsPage() {
                   <th>Tipo</th>
                   <th>Estado</th>
                   <th>Fecha</th>
-                  {canWrite ? <th>Avanzar estado</th> : null}
+                  {showActions ? <th>Acciones</th> : null}
                 </tr>
               </thead>
               <tbody>
@@ -227,13 +253,20 @@ export function EnrollmentsPage() {
                       <span className={statusBadge(enrollment.status)}>
                         {enrollmentStatusLabels[enrollment.status]}
                       </span>
+                      {enrollment.rejectionReason &&
+                      (enrollment.status === 'INCOMPLETE' || enrollment.status === 'REJECTED') ? (
+                        <small className={styles.reviewNote}>Motivo: {enrollment.rejectionReason}</small>
+                      ) : null}
+                      {enrollment.canGenerateDocuments ? (
+                        <small className={styles.reviewNote}>Ficha y carné habilitados</small>
+                      ) : null}
                     </td>
                     <td>{enrollment.requestDate}</td>
-                    {canWrite ? (
+                    {showActions ? (
                       <td>
                         <div className={styles.rowActions}>
                           {enrollment.allowedNextStatuses
-                            .filter((next) => next !== 'APPROVED' || canApprove)
+                            .filter(canMoveTo)
                             .map((next) => (
                               <button
                                 key={next}
@@ -242,7 +275,7 @@ export function EnrollmentsPage() {
                                 disabled={busyId === enrollment.id}
                                 onClick={() => void changeStatus(enrollment, next)}
                               >
-                                {enrollmentStatusLabels[next]}
+                                {enrollmentActionLabels[next]}
                               </button>
                             ))}
                         </div>
@@ -279,6 +312,21 @@ export function EnrollmentsPage() {
           </div>
         </div>
       </section>
+
+      {decision ? (
+        <ReviewDecisionModal
+          enrollment={decision.enrollment}
+          decision={decision.status}
+          onClose={() => setDecision(null)}
+          onConfirm={async (reason) => {
+            await transitionEnrollmentStatus(request, decision.enrollment.id, decision.status, {
+              rejectionReason: reason,
+            });
+            setDecision(null);
+            await load();
+          }}
+        />
+      ) : null}
 
       {formOpen ? (
         <EnrollmentFormModal

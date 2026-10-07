@@ -83,6 +83,12 @@ export type Enrollment = {
   requestDate: string;
   status: EnrollmentStatus;
   notes: string | null;
+  approvedAt: string | null;
+  approvedByUserId: string | null;
+  /** Motivo de la última devolución (Incompleta) o del rechazo definitivo. */
+  rejectionReason: string | null;
+  /** La ficha PDF y el carné solo pueden generarse para inscripciones aprobadas. */
+  canGenerateDocuments: boolean;
   student: { id: string; studentCode: string; fullName: string };
   academicCycle: { id: string; name: string; year: number; status: string };
   grade: { id: string; code: string; name: string; level: string };

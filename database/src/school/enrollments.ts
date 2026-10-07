@@ -42,12 +42,24 @@ function openEnrollmentConflict(cycleName: string) {
 const allowedTransitions: Record<EnrollmentStatus, EnrollmentStatus[]> = {
   DRAFT: ["PENDING_REVIEW", "CANCELLED"],
   PENDING_REVIEW: ["INCOMPLETE", "APPROVED", "REJECTED", "CANCELLED"],
-  INCOMPLETE: ["PENDING_REVIEW", "APPROVED", "CANCELLED"],
+  // Una inscripción devuelta vuelve a revisión; no se aprueba sin pasar por PENDING_REVIEW.
+  INCOMPLETE: ["PENDING_REVIEW", "CANCELLED"],
   APPROVED: ["CLOSED"],
   REJECTED: ["CLOSED"],
   CLOSED: [],
   CANCELLED: [],
 };
+
+// Decisiones de revisión (dirección): requieren enrollment.approve. Devolver (INCOMPLETE) y
+// rechazar definitivamente (REJECTED) exigen un motivo que se muestra a la secretaría.
+export const reviewStatuses: EnrollmentStatus[] = ["APPROVED", "INCOMPLETE", "REJECTED"];
+const statusesRequiringReason: EnrollmentStatus[] = ["INCOMPLETE", "REJECTED"];
+const reviewReasonMinLength = 5;
+const reviewReasonMaxLength = 1000;
+
+export function isReviewStatus(status: EnrollmentStatus) {
+  return reviewStatuses.includes(status);
+}
 
 function buildSearchName(givenNames: string, firstSurname: string, secondSurname?: string | null) {
   return [givenNames, firstSurname, secondSurname].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
@@ -63,6 +75,8 @@ function publicEnrollment(enrollment: {
   status: EnrollmentStatus;
   notes: string | null;
   approvedAt: Date | null;
+  approvedByUserId: string | null;
+  rejectionReason: string | null;
   createdAt: Date;
   updatedAt: Date;
   student: {
@@ -85,6 +99,10 @@ function publicEnrollment(enrollment: {
     status: enrollment.status,
     notes: enrollment.notes,
     approvedAt: enrollment.approvedAt,
+    approvedByUserId: enrollment.approvedByUserId,
+    rejectionReason: enrollment.rejectionReason,
+    // La generación de ficha PDF y carné (Sprint 5) solo se habilita para inscripciones aprobadas.
+    canGenerateDocuments: enrollment.status === "APPROVED",
     createdAt: enrollment.createdAt,
     updatedAt: enrollment.updatedAt,
     student: {
@@ -313,34 +331,58 @@ export async function transitionEnrollmentStatus(
     );
   }
 
-  if (nextStatus === "APPROVED" || nextStatus === "INCOMPLETE") {
-    // Aprobar requiere enrollment.approve; se valida en la capa HTTP.
+  const rejectionReason = options.rejectionReason?.trim() ?? "";
+  if (statusesRequiringReason.includes(nextStatus)) {
+    if (rejectionReason.length < reviewReasonMinLength || rejectionReason.length > reviewReasonMaxLength) {
+      throw Object.assign(
+        new Error(
+          `El motivo es obligatorio y debe contener entre ${reviewReasonMinLength} y ${reviewReasonMaxLength} caracteres`,
+        ),
+        { status: 400 },
+      );
+    }
   }
 
-  const updated = await prisma.enrollment.update({
-    where: { id: enrollmentId },
-    data: {
-      status: nextStatus,
-      ...(nextStatus === "APPROVED"
-        ? { approvedAt: new Date(), approvedByUserId: actorUserId, rejectionReason: null }
-        : {}),
-      ...(nextStatus === "REJECTED"
-        ? { rejectionReason: options.rejectionReason?.trim() || "Sin motivo indicado" }
-        : {}),
-      ...(options.notes !== undefined ? { notes: options.notes?.trim() || null } : {}),
-    },
-    include: enrollmentInclude,
-  });
+  const reviewData =
+    nextStatus === "APPROVED"
+      ? { approvedAt: new Date(), approvedByUserId: actorUserId, rejectionReason: null }
+      : statusesRequiringReason.includes(nextStatus)
+        ? { approvedAt: null, approvedByUserId: null, rejectionReason }
+        : {};
 
-  await prisma.auditEvent.create({
-    data: {
-      userId: actorUserId,
-      action: "UPDATE",
-      entityType: "Enrollment",
-      entityId: enrollmentId,
-      beforeData: { status: enrollment.status },
-      afterData: { status: nextStatus },
-    },
+  const updated = await prisma.$transaction(async (tx) => {
+    // Actualización condicionada al estado leído: si otra persona ya cambió la inscripción
+    // (por ejemplo, dos revisores a la vez), no se pisa su decisión.
+    const { count } = await tx.enrollment.updateMany({
+      where: { id: enrollmentId, status: enrollment.status },
+      data: {
+        status: nextStatus,
+        ...reviewData,
+        ...(options.notes !== undefined ? { notes: options.notes?.trim() || null } : {}),
+      },
+    });
+    if (count === 0) {
+      throw Object.assign(
+        new Error("La inscripción cambió de estado mientras se procesaba. Recargue e intente de nuevo."),
+        { status: 409 },
+      );
+    }
+
+    await tx.auditEvent.create({
+      data: {
+        userId: actorUserId,
+        action: "UPDATE",
+        entityType: "Enrollment",
+        entityId: enrollmentId,
+        beforeData: { status: enrollment.status },
+        afterData: {
+          status: nextStatus,
+          ...(statusesRequiringReason.includes(nextStatus) ? { rejectionReason } : {}),
+        },
+      },
+    });
+
+    return tx.enrollment.findUniqueOrThrow({ where: { id: enrollmentId }, include: enrollmentInclude });
   });
 
   return publicEnrollment(updated);

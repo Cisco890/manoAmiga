@@ -256,6 +256,21 @@ Un alumno solo puede tener una inscripción activa (Borrador, Pendiente de revis
 
 La prueba `database/test/enrollment-constraint.test.ts` verifica el índice, los casos permitidos y la carrera entre dos transacciones.
 
+### Aprobación, devolución y rechazo
+
+Solo los usuarios con el permiso `enrollment.approve` (hoy, `ADMIN`) deciden sobre una inscripción **Pendiente de revisión**, con `PATCH /api/enrollments/:id/status`:
+
+| Decisión | Estado resultante | Requisitos |
+| --- | --- | --- |
+| Aprobar | `APPROVED` | Registra `approvedAt` y `approvedByUserId`. La respuesta incluye `canGenerateDocuments: true`: la ficha PDF y el carné (Sprint 5) solo se generan para inscripciones aprobadas. |
+| Devolver para corrección | `INCOMPLETE` | `rejectionReason` obligatorio (5 a 1000 caracteres). La secretaría corrige y la envía otra vez a revisión. |
+| Rechazar definitivamente | `REJECTED` | `rejectionReason` obligatorio. No puede volver a revisión. |
+
+- Una inscripción Incompleta no puede aprobarse directamente: primero debe volver a Pendiente de revisión.
+- El cambio de estado es atómico. Si dos personas deciden a la vez sobre la misma inscripción, solo se aplica la primera y la otra recibe un error.
+- Cada decisión queda en `audit_events` con el estado anterior, el nuevo y el motivo.
+- En la vista **Inscripciones**, el botón *Pendientes de revisión* filtra la bandeja de dirección. Devolver y Rechazar piden el motivo, que después se muestra en la fila de la inscripción.
+
 ## Autenticación
 
 - El login utiliza correo y contraseña.

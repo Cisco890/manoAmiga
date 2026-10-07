@@ -18,6 +18,7 @@ import {
   createEnrollment,
   enrollmentStatuses,
   getEnrollment,
+  isReviewStatus,
   listEnrollments,
   transitionEnrollmentStatus,
 } from "./enrollments";
@@ -430,16 +431,14 @@ export async function handleSchoolRoutes(
       request.method === "PATCH"
     ) {
       const principal = await authenticatedPrincipal(request);
-      requirePermission(principal, "enrollment.write");
       const body = await readJson(request);
       if (!isObject(body)) throw new DomainError(400, "El cuerpo debe ser un objeto JSON");
       if (!enrollmentStatuses.includes(body.status as (typeof enrollmentStatuses)[number])) {
         throw new DomainError(400, "Estado de inscripción no válido");
       }
       const nextStatus = body.status as EnrollmentStatus;
-      if (nextStatus === "APPROVED") {
-        requirePermission(principal, "enrollment.approve");
-      }
+      // Aprobar, devolver o rechazar es una decisión de dirección; el resto, de secretaría.
+      requirePermission(principal, isReviewStatus(nextStatus) ? "enrollment.approve" : "enrollment.write");
       const data = await wrapDomain(() =>
         transitionEnrollmentStatus(principal.schoolId, principal.id, enrollmentPath.id, nextStatus, {
           rejectionReason: typeof body.rejectionReason === "string" ? body.rejectionReason : null,
