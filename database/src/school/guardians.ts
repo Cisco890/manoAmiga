@@ -1,6 +1,7 @@
 import type { GuardianRelationship, Prisma } from "../generated/prisma/client";
 import { prisma } from "../prisma";
 import { decryptCui, encryptCui, hashCui, isValidCui, maskCui, normalizeCui } from "../privacy/cui";
+import { addressSelect, publicAddress } from "./addresses";
 import { buildFullName, buildSearchName } from "./personName";
 
 /**
@@ -324,13 +325,21 @@ const linkSelect = (schoolId: string) => ({
   authorizedForSchoolProcedures: true,
   startDate: true,
   studentId: true,
-  guardian: { select: { ...guardianSelect, studentLinks: linkedStudentsSelect(schoolId) } },
+  student: { select: { addressId: true } },
+  guardian: {
+    select: {
+      ...guardianSelect,
+      addressId: true,
+      address: { select: addressSelect },
+      studentLinks: linkedStudentsSelect(schoolId),
+    },
+  },
 }) satisfies Prisma.StudentGuardianSelect;
 
 type LinkRow = Prisma.StudentGuardianGetPayload<{ select: ReturnType<typeof linkSelect> }>;
 
 function publicLink(row: LinkRow) {
-  const { studentLinks, ...guardian } = row.guardian;
+  const { studentLinks, addressId, address, ...guardian } = row.guardian;
   return {
     id: row.id,
     relationship: row.relationship,
@@ -340,7 +349,12 @@ function publicLink(row: LinkRow) {
     legalRepresentative: row.legalRepresentative,
     authorizedForSchoolProcedures: row.authorizedForSchoolProcedures,
     startDate: row.startDate.toISOString().slice(0, 10),
-    guardian: publicGuardian(guardian),
+    guardian: {
+      ...publicGuardian(guardian),
+      address: publicAddress(address),
+      // MA-28: comparte la fila de dirección del alumno (vive en la misma casa).
+      sharesStudentAddress: Boolean(addressId) && addressId === row.student.addressId,
+    },
     // Hermanos: otros alumnos que comparten este responsable.
     otherStudents: studentLinks
       .filter((link) => link.student.id !== row.studentId)

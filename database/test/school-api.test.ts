@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import bcrypt from "bcryptjs";
 import { prisma } from "../src/prisma";
-import { completeEnrollmentForm, primaryGuardianLink } from "./support/schoolFixtures";
+import { completeEnrollmentForm, primaryGuardianLink, sampleAddress } from "./support/schoolFixtures";
 
 process.env.JWT_ACCESS_SECRET = "secreto-de-integracion-con-mas-de-32-bytes";
 process.env.FRONTEND_ORIGIN = "http://localhost:5173";
@@ -20,6 +20,7 @@ const createdEnrollmentIds: string[] = [];
 const createdCycleIds: string[] = [];
 const createdGradeIds: string[] = [];
 const createdGuardianIds: string[] = [];
+const createdAddressIds: string[] = [];
 
 before(async () => {
   const [school, adminRole] = await Promise.all([
@@ -60,6 +61,9 @@ after(async () => {
   }
   if (createdGuardianIds.length) {
     await prisma.guardian.deleteMany({ where: { id: { in: createdGuardianIds } } });
+  }
+  if (createdAddressIds.length) {
+    await prisma.address.deleteMany({ where: { id: { in: createdAddressIds } } });
   }
   if (createdCycleIds.length) {
     await prisma.academicCycle.deleteMany({ where: { id: { in: createdCycleIds } } });
@@ -199,6 +203,14 @@ test("ciclos, grados, alumnos e inscripciones cumplen el flujo escolar", async (
   });
   assert.equal(guardianResponse.status, 201);
   createdGuardianIds.push(((await guardianResponse.json()) as { data: { guardian: { id: string } } }).data.guardian.id);
+  // MA-28: y la dirección del alumno.
+  const addressResponse = await fetch(`${baseUrl}/api/students/${studentBody.data.id}/address`, {
+    method: "PUT",
+    headers: auth(token),
+    body: JSON.stringify(sampleAddress),
+  });
+  assert.equal(addressResponse.status, 200);
+  createdAddressIds.push(((await addressResponse.json()) as { data: { address: { id: string } } }).data.address.id);
 
   const duplicateCui = await fetch(`${baseUrl}/api/students`, {
     method: "POST",

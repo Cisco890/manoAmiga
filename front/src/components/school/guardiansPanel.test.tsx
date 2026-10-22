@@ -9,9 +9,10 @@ const guardian = {
   fullName: 'María López', dpiMasked: '*********0123', hasDpi: true, mobilePhone: '5555-1234', homePhone: null,
   primaryEmail: null, occupation: null, workplaceName: null, workplacePhone: null,
 };
+const linkedGuardian = { ...guardian, address: null, sharesStudentAddress: true };
 const motherLink: GuardianLink = {
   id: 'link-1', relationship: 'MOTHER', customRelationship: null, livesWithStudent: true, primaryContact: true,
-  legalRepresentative: false, authorizedForSchoolProcedures: false, startDate: '2026-01-10', guardian,
+  legalRepresentative: false, authorizedForSchoolProcedures: false, startDate: '2026-01-10', guardian: linkedGuardian,
   otherStudents: [{ id: 's-2', studentCode: 'MA-2026-00002', fullName: 'Luis López', relationship: 'MOTHER' }],
 };
 const fatherResult: GuardianSearchResult = {
@@ -27,9 +28,14 @@ function renderPanel(options: { links?: GuardianLink[]; canWrite?: boolean } = {
     if (path.startsWith('/guardians?')) return json({ data: [fatherResult] });
     if (path === '/students/s-1/guardians' && init.method === 'POST') {
       const body = JSON.parse(String(init.body)) as { guardianId?: string };
-      const created = { ...motherLink, id: 'link-2', relationship: 'FATHER' as const, primaryContact: false, guardian: { ...guardian, id: body.guardianId ?? 'g-new', fullName: 'Pedro López' } };
+      const created = { ...motherLink, id: 'link-2', relationship: 'FATHER' as const, primaryContact: false, guardian: { ...linkedGuardian, id: body.guardianId ?? 'g-new', fullName: 'Pedro López' } };
       links = [...links, created];
       return json({ data: created }, 201);
+    }
+    if (path === '/guardians/g-1/address' && init.method === 'PUT') {
+      links = links.map((link) => ({ ...link, guardian: { ...link.guardian, sharesStudentAddress: false,
+        address: { id: 'addr-2', ...JSON.parse(String(init.body)).address, formatted: 'Km 18, Fraijanes, Guatemala' } } }));
+      return json({ data: { address: links[0].guardian.address } });
     }
     if (path.startsWith('/students/s-1/guardians/') && init.method === 'DELETE') {
       links = links.filter((link) => !path.endsWith(link.id));
@@ -94,6 +100,32 @@ describe('panel de padres, madres y tutores', () => {
     const body = JSON.parse(String(calls(request, 'POST')[0][1]?.body)) as Record<string, unknown>;
     expect(body.guardian).toEqual({ givenNames: 'Pedro', firstSurname: 'López', dpi: '1234567890123' });
     expect(body.primaryContact).toBe(true);
+  });
+
+  it('registra una dirección propia para el responsable que no vive con el alumno', async () => {
+    const { request } = renderPanel();
+    const user = userEvent.setup();
+    expect(await screen.findByText('Dirección: la misma del alumno')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Dirección de María López' }));
+    await user.click(screen.getByLabelText('Vive en la misma dirección que el alumno'));
+    await user.type(screen.getByLabelText('Dirección (calle o avenida y número)'), 'Km 18');
+    await user.type(screen.getByLabelText('Municipio'), 'Fraijanes');
+    await user.type(screen.getByLabelText('Departamento'), 'Guatemala');
+    await user.click(screen.getByRole('button', { name: 'Guardar dirección' }));
+
+    expect(await screen.findByText('Dirección: Km 18, Fraijanes, Guatemala')).toBeTruthy();
+    const body = JSON.parse(String(calls(request, 'PUT')[0][1]?.body)) as { address: Record<string, string | null> };
+    expect(body.address).toMatchObject({ fullAddress: 'Km 18', municipality: 'Fraijanes', department: 'Guatemala', country: 'Guatemala' });
+  });
+
+  it('comparte la dirección del alumno con un clic', async () => {
+    const { request } = renderPanel({ links: [{ ...motherLink, guardian: { ...linkedGuardian, sharesStudentAddress: false } }] });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Dirección de María López' }));
+    await user.click(screen.getByLabelText('Vive en la misma dirección que el alumno'));
+    await user.click(screen.getByRole('button', { name: 'Guardar dirección' }));
+    await waitFor(() => expect(calls(request, 'PUT')).toHaveLength(1));
+    expect(JSON.parse(String(calls(request, 'PUT')[0][1]?.body))).toEqual({ sameAsStudentId: 's-1' });
   });
 
   it('desvincula sin borrar y oculta las acciones sin permiso de escritura', async () => {

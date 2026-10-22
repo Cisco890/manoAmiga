@@ -347,6 +347,33 @@ sin volver a digitar sus datos. Se administra desde la ficha del alumno
 
 Las pruebas están en `database/test/guardians.test.ts`.
 
+### Direcciones del alumno y de sus responsables
+
+La dirección se registra en la ficha del alumno (**Dirección**) o en el paso
+**Responsables y dirección** del formulario. Una misma fila de `addresses` puede
+asociarse al alumno y a sus responsables:
+
+- **Dirección del hogar:** al editar la dirección del alumno se actualiza en su lugar,
+  también para los responsables que la comparten.
+- **"Vive en la misma dirección que el alumno":** el responsable apunta a la misma fila
+  (`sameAsStudentId`), sin volver a digitarla.
+- **Dirección propia:** si un responsable que la compartía registra otra dirección, recibe
+  una fila nueva y la del alumno no cambia. Quitar una dirección que nadie más usa la elimina.
+- Municipio y departamento son obligatorios, junto con la dirección (calle y número),
+  la colonia o la aldea. El país es Guatemala por defecto.
+- `formatAddress` (`database/src/school/addresses.ts`) arma la dirección en una línea. La
+  usan la ficha resumida, el formulario de inscripción (`form.family.studentAddress`) y la
+  usará la ficha PDF del Sprint 5, así que no se vuelve a digitar.
+- La auditoría registra a quién pertenece la dirección, pero no copia su contenido.
+
+| Endpoint | Permiso | Resultado |
+| --- | --- | --- |
+| `GET /api/students/:id/address` | `student.read` | Dirección del alumno y responsables que la comparten. |
+| `PUT /api/students/:id/address` | `student.write` | Registra o actualiza la dirección del hogar. |
+| `PUT /api/guardians/:id/address` | `student.write` | `{ "sameAsStudentId" }`, `{ "address": {...} }` o `{ "address": null }`. |
+
+Las pruebas están en `database/test/addresses.test.ts`.
+
 ## Inscripciones
 
 Flujo de estados: Borrador → Pendiente de revisión → Incompleta/Aprobada → Cerrada. Un cambio de grado en el mismo ciclo cierra la inscripción anterior y crea una nueva, para conservar el historial.
@@ -366,7 +393,7 @@ La secretaría completa cada inscripción en Borrador o Incompleta con el botón
 
 | Paso | Campos obligatorios |
 | --- | --- |
-| Responsables | Un padre, madre o tutor vigente marcado como responsable principal. Se administra en la ficha del alumno, así que sirve para todas sus inscripciones. |
+| Responsables y dirección | Un padre, madre o tutor vigente marcado como responsable principal y la dirección del alumno. Se administran en la ficha del alumno, así que sirven para todas sus inscripciones. |
 | Contacto y salida | Nombre, teléfono y parentesco del contacto para mensajes. Al menos una persona autorizada para recoger al alumno (máximo 3), salvo que pueda retirarse solo. |
 | Hogar | Con quién vive el alumno (al menos una opción; si marca "Otros", el detalle) y número de personas en el hogar. |
 | Salud | Tipo de sangre o "se desconoce". El detalle de enfermedades, alergias a medicamentos o vacunas pendientes cuando se marcan. |

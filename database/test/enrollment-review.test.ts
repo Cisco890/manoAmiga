@@ -125,7 +125,7 @@ test("una inscripción devuelta vuelve a revisión antes de poder aprobarse", as
     status: "INCOMPLETE",
     rejectionReason: "Falta la firma del encargado",
   });
-  // MA-25: reenviar a revisión exige el formulario completo y el responsable principal (MA-27).
+  // MA-25: reenviar a revisión exige el formulario completo, el responsable principal (MA-27) y la dirección (MA-28).
   const { studentId } = await prisma.enrollment.findUniqueOrThrow({ where: { id: enrollment.id } });
   await context.completeStudentRecord(studentId);
   assert.equal(

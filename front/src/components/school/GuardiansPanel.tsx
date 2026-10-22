@@ -13,8 +13,11 @@ import {
   type GuardianRelationship,
   type GuardianSearchResult,
 } from '../../api/guardians.ts';
+import { saveGuardianAddress, type AddressInput } from '../../api/addresses.ts';
 import type { AuthenticatedRequest } from '../../api/users.ts';
 import { guardianRelationshipLabels } from '../../lib/labels.ts';
+import { emptyAddress, toAddressInput } from '../../lib/address.ts';
+import { AddressFields } from './AddressForm.tsx';
 import styles from './GuardiansPanel.module.css';
 
 /**
@@ -58,7 +61,9 @@ export function GuardiansPanel({ studentId, request, canWrite, onChange }: Props
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
-  const [mode, setMode] = useState<{ type: 'add' } | { type: 'edit'; link: GuardianLink } | null>(null);
+  const [mode, setMode] = useState<
+    { type: 'add' } | { type: 'edit'; link: GuardianLink } | { type: 'address'; link: GuardianLink } | null
+  >(null);
 
   const load = useCallback(async () => {
     try {
@@ -127,6 +132,12 @@ export function GuardiansPanel({ studentId, request, canWrite, onChange }: Props
                   .filter(Boolean)
                   .join(' · ') || 'Sin datos de contacto'}
               </div>
+              <div className={styles.muted}>
+                Dirección:{' '}
+                {link.guardian.sharesStudentAddress
+                  ? 'la misma del alumno'
+                  : link.guardian.address?.formatted ?? 'sin registrar'}
+              </div>
               {link.otherStudents.length ? (
                 <div className={styles.muted}>
                   También es responsable de: {link.otherStudents.map((s) => `${s.fullName} (${s.studentCode})`).join(', ')}
@@ -142,6 +153,10 @@ export function GuardiansPanel({ studentId, request, canWrite, onChange }: Props
                   ) : null}
                   <button type="button" className={`btn ${styles.btnSm}`} disabled={busy} onClick={() => setMode({ type: 'edit', link })}>
                     Editar
+                  </button>
+                  <button type="button" className={`btn ${styles.btnSm}`} disabled={busy}
+                    aria-label={`Dirección de ${link.guardian.fullName}`} onClick={() => setMode({ type: 'address', link })}>
+                    Dirección
                   </button>
                   <button type="button" className={`btn ${styles.btnSm}`} disabled={busy}
                     aria-label={`Desvincular a ${link.guardian.fullName}`}
@@ -171,6 +186,20 @@ export function GuardiansPanel({ studentId, request, canWrite, onChange }: Props
           busy={busy}
           onCancel={() => setMode(null)}
           onSubmit={(input) => run(() => linkGuardian(request, studentId, input), 'Responsable vinculado.')}
+        />
+      ) : null}
+      {mode?.type === 'address' ? (
+        <GuardianAddressForm
+          key={mode.link.id}
+          link={mode.link}
+          busy={busy}
+          onCancel={() => setMode(null)}
+          onSubmit={(body) =>
+            run(
+              () => saveGuardianAddress(request, mode.link.guardian.id, 'same' in body ? { sameAsStudentId: studentId } : body),
+              'Dirección del responsable guardada.',
+            )
+          }
         />
       ) : null}
       {mode?.type === 'edit' ? (
@@ -261,6 +290,52 @@ function cleanPerson(person: GuardianInput, keepEmptyDpi = false) {
     (result as Record<string, string | null>)[field] = text || null;
   }
   return result;
+}
+
+function GuardianAddressForm({
+  link,
+  busy,
+  onCancel,
+  onSubmit,
+}: {
+  link: GuardianLink;
+  busy: boolean;
+  onCancel: () => void;
+  onSubmit: (body: { same: true } | { address: AddressInput | null }) => Promise<boolean>;
+}) {
+  const [same, setSame] = useState(link.guardian.sharesStudentAddress);
+  // Si compartía la del alumno, la dirección propia empieza vacía para no confundirlas.
+  const [draft, setDraft] = useState<AddressInput>(
+    link.guardian.sharesStudentAddress ? { ...emptyAddress } : toAddressInput(link.guardian.address),
+  );
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    void onSubmit(same ? { same: true } : { address: draft });
+  }
+
+  return (
+    <form className={styles.form} aria-label={`Dirección de ${link.guardian.fullName}`} onSubmit={submit}>
+      <fieldset className={styles.fieldset} disabled={busy}>
+        <label className={styles.check}>
+          <input type="checkbox" checked={same} onChange={(event) => setSame(event.target.checked)} />
+          Vive en la misma dirección que el alumno
+        </label>
+        {same ? (
+          <p className={styles.muted}>Se usará la dirección registrada del alumno; si cambia, cambia para ambos.</p>
+        ) : (
+          <AddressFields value={draft} onChange={setDraft} />
+        )}
+        <div className={styles.actions}>
+          {link.guardian.address ? (
+            <button type="button" className="btn" onClick={() => void onSubmit({ address: null })}>Quitar dirección</button>
+          ) : null}
+          <button type="button" className="btn" onClick={onCancel}>Cancelar</button>
+          <button type="submit" className="btn btnPrimary">{busy ? 'Guardando…' : 'Guardar dirección'}</button>
+        </div>
+      </fieldset>
+    </form>
+  );
 }
 
 function AddGuardianForm({

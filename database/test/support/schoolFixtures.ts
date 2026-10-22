@@ -37,6 +37,15 @@ export const completeEnrollmentForm = {
   },
 };
 
+/** Dirección mínima válida para PUT /students/:id/address (MA-28). */
+export const sampleAddress = {
+  fullAddress: "4a. calle 3-25",
+  zone: "5",
+  neighborhood: "Colonia El Esfuerzo",
+  municipality: "Mixco",
+  department: "Guatemala",
+};
+
 /** Responsable principal nuevo para POST /students/:id/guardians (MA-27). */
 export const primaryGuardianLink = {
   relationship: "MOTHER",
@@ -57,6 +66,7 @@ export async function createSchoolTestContext(label: string) {
   const studentIds: string[] = [];
   const cycleIds: string[] = [];
   const guardianIds: string[] = [];
+  const addressIds: string[] = [];
 
   const [school, adminRole, collaboratorRole] = await Promise.all([
     prisma.school.findUniqueOrThrow({ where: { code: "MANO_AMIGA" }, select: { id: true } }),
@@ -177,8 +187,11 @@ export async function createSchoolTestContext(label: string) {
     });
   }
 
-  /** Completa los datos del alumno que exige el envío a revisión: un responsable principal. */
+  /** Completa los datos del alumno que exige el envío a revisión: responsable principal y dirección. */
   async function completeStudentRecord(studentId: string) {
+    const address = await prisma.address.create({ data: sampleAddress, select: { id: true } });
+    addressIds.push(address.id);
+    await prisma.student.update({ where: { id: studentId }, data: { addressId: address.id } });
     const guardian = await prisma.guardian.create({
       data: {
         givenNames: "María",
@@ -197,6 +210,7 @@ export async function createSchoolTestContext(label: string) {
     await prisma.enrollment.deleteMany({ where: { studentId: { in: studentIds } } });
     await prisma.student.deleteMany({ where: { id: { in: studentIds } } });
     await prisma.guardian.deleteMany({ where: { id: { in: guardianIds } } });
+    await prisma.address.deleteMany({ where: { id: { in: addressIds } } });
     await prisma.academicCycle.deleteMany({ where: { id: { in: cycleIds } } });
     await prisma.auditEvent.deleteMany({ where: { userId: { in: userIds } } });
     await prisma.user.deleteMany({ where: { id: { in: userIds } } });

@@ -12,6 +12,7 @@ import {
 } from '../../api/enrollmentForm.ts';
 import type { Enrollment } from '../../api/school.ts';
 import { ApiError } from '../../auth/api.ts';
+import { StudentAddressPanel } from './AddressForm.tsx';
 import { GuardiansPanel } from './GuardiansPanel.tsx';
 import modalStyles from './FormModal.module.css';
 import styles from './EnrollmentFormWizard.module.css';
@@ -21,7 +22,7 @@ type WizardStep = FormStepId | 'review';
 
 const stepOrder: WizardStep[] = ['family', 'contact', 'household', 'medical', 'signature', 'review'];
 const stepLabels: Record<WizardStep, string> = {
-  family: 'Responsables',
+  family: 'Responsables y dirección',
   contact: 'Contacto y salida',
   household: 'Hogar',
   medical: 'Salud',
@@ -237,6 +238,17 @@ export function EnrollmentFormWizard({
                       como responsable principal antes de enviar a revisión.
                     </p>
                     <GuardiansPanel
+                      studentId={enrollment.student.id}
+                      request={request}
+                      canWrite={editable}
+                      onChange={() => void reloadForm()}
+                    />
+                  </Section>
+                  <Section title="Dirección del alumno">
+                    <p className={styles.hint}>
+                      Se reutiliza en la ficha de inscripción y en la dirección de los responsables que viven con el alumno.
+                    </p>
+                    <StudentAddressPanel
                       studentId={enrollment.student.id}
                       request={request}
                       canWrite={editable}

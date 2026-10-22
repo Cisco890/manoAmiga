@@ -1,4 +1,5 @@
 import { ApiError } from '../auth/api.ts';
+import type { Address } from './addresses.ts';
 import type { AuthenticatedRequest } from './users.ts';
 
 async function parseResponse<T>(response: Response): Promise<T> {
@@ -62,7 +63,8 @@ export type GuardianLink = GuardianLinkFields & {
   id: string;
   authorizedForSchoolProcedures: boolean;
   startDate: string;
-  guardian: Guardian;
+  /** sharesStudentAddress: vive en la misma dirección (misma fila) que el alumno. */
+  guardian: Guardian & { address: Address | null; sharesStudentAddress: boolean };
   /** Hermanos: otros alumnos que comparten este responsable. */
   otherStudents: LinkedStudent[];
 };

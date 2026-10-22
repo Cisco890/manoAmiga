@@ -18,9 +18,11 @@ export type AuthorizedPickupInput = PersonNameInput & {
 };
 
 export type EnrollmentFormData = {
-  /** Se administra en la ficha del alumno (responsables); el formulario solo lo consulta. */
+  /** Se administra en la ficha del alumno (responsables y dirección); el formulario solo lo consulta. */
   family: {
     hasPrimaryGuardian: boolean;
+    /** Dirección del alumno en una línea; la ficha PDF la reutiliza. */
+    studentAddress: string | null;
   };
   contact: {
     messageContactGivenNames: string | null;

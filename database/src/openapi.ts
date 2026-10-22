@@ -43,7 +43,7 @@ export const openApiDocument = {
       get: {
         tags: ["Alumnos"], summary: "Ficha resumida del alumno", security: [{ bearerAuth: [] }],
         parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
-        description: "Requiere student.read. Incluye student, photo, currentEnrollment, responsible, guardians, sponsors, authorizedPickups, documents e history. Cada inscripción histórica conserva grado, ciclo, estado, documentos y autorizados. La inscripción actual es la abierta más reciente en un ciclo no cerrado. No incluye datos médicos, documentos de identidad sin enmascarar ni rutas privadas de almacenamiento.",
+        description: "Requiere student.read. Incluye student, photo, address (dirección del alumno con formatted), currentEnrollment, responsible, guardians, sponsors, authorizedPickups, documents e history. Cada inscripción histórica conserva grado, ciclo, estado, documentos y autorizados. La inscripción actual es la abierta más reciente en un ciclo no cerrado. No incluye datos médicos, documentos de identidad sin enmascarar ni rutas privadas de almacenamiento.",
         responses: { "200": { description: "Ficha consolidada en data. Los documentos sin generar tienen estado MISSING." }, "401": errorResponse, "403": errorResponse, "404": errorResponse },
       },
     },
@@ -138,6 +138,33 @@ export const openApiDocument = {
           { name: "linkId", in: "path", required: true, schema: { type: "string", format: "uuid" } },
         ],
         responses: { "200": { description: "Vínculo terminado" }, "401": errorResponse, "403": errorResponse, "404": errorResponse },
+      },
+    },
+    "/api/students/{id}/address": {
+      get: {
+        tags: ["Responsables"], summary: "Dirección del alumno", security: [{ bearerAuth: [] }],
+        description: "Requiere student.read. Devuelve address (con formatted, la dirección en una línea que reutilizan la ficha y la ficha PDF) y sharedWith: los responsables que viven en la misma dirección.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        responses: { "200": { description: "address es null si no está registrada." }, "401": errorResponse, "403": errorResponse, "404": errorResponse },
+      },
+      put: {
+        tags: ["Responsables"], summary: "Registrar o actualizar la dirección del alumno", security: [{ bearerAuth: [] }],
+        description: "Requiere student.write. Si ya existe se actualiza en su lugar, también para los responsables que la comparten (dirección del hogar). Municipio y departamento son obligatorios, junto con la dirección, la colonia o la aldea.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/AddressInput" } } } },
+        responses: { "200": { description: "Dirección guardada" }, "400": errorResponse, "401": errorResponse, "403": errorResponse, "404": errorResponse },
+      },
+    },
+    "/api/guardians/{id}/address": {
+      put: {
+        tags: ["Responsables"], summary: "Dirección de un responsable", security: [{ bearerAuth: [] }],
+        description: "Requiere student.write. Envíe exactamente uno: sameAsStudentId para compartir la dirección de un alumno del que es responsable (409 si el alumno no tiene dirección), address con una dirección propia o address null para quitarla. Si la dirección actual está compartida, address crea una propia sin modificar la del alumno.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        requestBody: { required: true, content: { "application/json": { schema: { oneOf: [
+          { type: "object", required: ["sameAsStudentId"], additionalProperties: false, properties: { sameAsStudentId: { type: "string", format: "uuid" } } },
+          { type: "object", required: ["address"], additionalProperties: false, properties: { address: { oneOf: [{ $ref: "#/components/schemas/AddressInput" }, { type: "null" }] } } },
+        ] } } } },
+        responses: { "200": { description: "Dirección del responsable en data.address" }, "400": errorResponse, "401": errorResponse, "403": errorResponse, "404": errorResponse, "409": errorResponse },
       },
     },
     "/api/health": {
@@ -366,6 +393,22 @@ export const openApiDocument = {
       bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "JWT" },
     },
     schemas: {
+      AddressInput: {
+        type: "object", required: ["municipality", "department"], additionalProperties: false,
+        properties: {
+          fullAddress: { type: ["string", "null"], maxLength: 300, description: "Calle o avenida y número" },
+          lot: { type: ["string", "null"], maxLength: 30 },
+          block: { type: ["string", "null"], maxLength: 30, description: "Manzana" },
+          sector: { type: ["string", "null"], maxLength: 80 },
+          zone: { type: ["string", "null"], maxLength: 20 },
+          neighborhood: { type: ["string", "null"], maxLength: 120, description: "Colonia o barrio" },
+          village: { type: ["string", "null"], maxLength: 120, description: "Aldea o caserío" },
+          municipality: { type: "string", maxLength: 100 },
+          department: { type: "string", maxLength: 100 },
+          country: { type: ["string", "null"], maxLength: 100, default: "Guatemala" },
+          reference: { type: ["string", "null"], maxLength: 500, description: "Referencia para llegar" },
+        },
+      },
       GuardianInput: {
         type: "object", additionalProperties: false,
         description: "Datos de padre, madre o tutor. givenNames y firstSurname son obligatorios al registrar.",

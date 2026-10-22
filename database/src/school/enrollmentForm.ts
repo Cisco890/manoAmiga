@@ -1,6 +1,7 @@
 import type { EnrollmentStatus, Prisma } from "../generated/prisma/client";
 import { prisma } from "../prisma";
 import { parseAuthorizedPickups, replaceStudentPickups } from "./authorizedPickups";
+import { studentFormattedAddress } from "./addresses";
 import { hasPrimaryGuardian } from "./guardians";
 export { maxAuthorizedPickups } from "./authorizedPickups";
 
@@ -13,7 +14,7 @@ export { maxAuthorizedPickups } from "./authorizedPickups";
  */
 
 export const formSteps = [
-  { id: "family", label: "Responsables" },
+  { id: "family", label: "Responsables y dirección" },
   { id: "contact", label: "Contacto y salida" },
   { id: "household", label: "Hogar" },
   { id: "medical", label: "Salud" },
@@ -32,9 +33,11 @@ export type PersonNameInput = {
 };
 
 export type EnrollmentFormData = {
-  /** Datos del alumno que se administran fuera del formulario (responsables). Solo lectura aquí. */
+  /** Datos del alumno que se administran fuera del formulario (responsables y dirección). Solo lectura aquí. */
   family: {
     hasPrimaryGuardian: boolean;
+    /** Dirección del alumno ya formateada (MA-28); la ficha PDF la reutiliza sin volver a digitarla. */
+    studentAddress: string | null;
   };
   contact: {
     messageContactGivenNames: string | null;
@@ -94,6 +97,7 @@ export function missingEnrollmentFields(form: EnrollmentFormData): MissingField[
   if (!form.family.hasPrimaryGuardian) {
     add("family", "primaryGuardian", "Padre, madre o tutor marcado como responsable principal");
   }
+  if (!filled(form.family.studentAddress)) add("family", "studentAddress", "Dirección del alumno");
 
   const { contact } = form;
   if (!filled(contact.messageContactGivenNames)) {
@@ -211,11 +215,11 @@ const formSelect = {
 type FormRow = Prisma.EnrollmentGetPayload<{ select: typeof formSelect }>;
 type Client = Prisma.TransactionClient | typeof prisma;
 
-type FormExtras = { hasPrimaryGuardian: boolean };
+type FormExtras = { hasPrimaryGuardian: boolean; studentAddress: string | null };
 
 function toFormData(row: FormRow, extras: FormExtras): EnrollmentFormData {
   return {
-    family: { hasPrimaryGuardian: extras.hasPrimaryGuardian },
+    family: { hasPrimaryGuardian: extras.hasPrimaryGuardian, studentAddress: extras.studentAddress },
     contact: {
       messageContactGivenNames: row.messageContactGivenNames,
       messageContactFirstSurname: row.messageContactFirstSurname,
@@ -248,7 +252,10 @@ async function findFormRow(client: Client, schoolId: string, enrollmentId: strin
     select: formSelect,
   });
   if (!row) throw Object.assign(new Error("Inscripción no encontrada"), { status: 404 });
-  const extras: FormExtras = { hasPrimaryGuardian: await hasPrimaryGuardian(client, row.studentId) };
+  const extras: FormExtras = {
+    hasPrimaryGuardian: await hasPrimaryGuardian(client, row.studentId),
+    studentAddress: await studentFormattedAddress(client, row.studentId),
+  };
   return { row, extras };
 }
 

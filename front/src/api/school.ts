@@ -122,6 +122,8 @@ export type DocumentSummary = {
 export type StudentSummary = {
   student: Student;
   photo: { id: string; capturedAt: string } | null;
+  /** Dirección del alumno (MA-28); `formatted` es la versión en una línea. */
+  address: (Record<string, string | null> & { id: string; formatted: string | null }) | null;
   currentEnrollment: {
     id: string; status: EnrollmentStatus; grade: { id: string; name: string; code: string };
     academicCycle: { id: string; name: string; year: number; status: AcademicCycleStatus };

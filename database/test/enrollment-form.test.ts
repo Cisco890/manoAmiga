@@ -10,7 +10,7 @@ import {
 import { completeEnrollmentForm, createSchoolTestContext } from "./support/schoolFixtures";
 
 const emptyForm: EnrollmentFormData = {
-  family: { hasPrimaryGuardian: false },
+  family: { hasPrimaryGuardian: false, studentAddress: null },
   contact: {
     messageContactGivenNames: null,
     messageContactFirstSurname: null,
@@ -31,7 +31,7 @@ const emptyForm: EnrollmentFormData = {
 };
 
 const fullForm: EnrollmentFormData = {
-  family: { hasPrimaryGuardian: true },
+  family: { hasPrimaryGuardian: true, studentAddress: "4a. calle 3-25, Zona 5, Mixco, Guatemala" },
   contact: {
     messageContactGivenNames: "María",
     messageContactFirstSurname: "López",
@@ -85,6 +85,7 @@ describe("missingEnrollmentFields", () => {
     const missing = missingEnrollmentFields(emptyForm);
     assert.deepEqual(fieldsOf(missing), [
       "primaryGuardian",
+      "studentAddress",
       "messageContactGivenNames",
       "messageContactFirstSurname",
       "messageContactPhone",
@@ -128,9 +129,16 @@ describe("missingEnrollmentFields", () => {
   });
 
   test("exige un responsable principal vigente (MA-27)", () => {
-    const form = { ...fullForm, family: { hasPrimaryGuardian: false } };
+    const form = { ...fullForm, family: { ...fullForm.family, hasPrimaryGuardian: false } };
     assert.deepEqual(missingEnrollmentFields(form), [
       { step: "family", field: "primaryGuardian", label: "Padre, madre o tutor marcado como responsable principal" },
+    ]);
+  });
+
+  test("exige la dirección del alumno (MA-28)", () => {
+    const form = { ...fullForm, family: { ...fullForm.family, studentAddress: null } };
+    assert.deepEqual(missingEnrollmentFields(form), [
+      { step: "family", field: "studentAddress", label: "Dirección del alumno" },
     ]);
   });
 
@@ -210,9 +218,9 @@ describe("API del formulario de inscripción", () => {
     });
     assert.equal(response.status, 422);
     const body = (await response.json()) as { message: string; missingFields: MissingField[] };
-    assert.match(body.message, /faltan 12 campos obligatorios/);
-    assert.equal(body.missingFields.length, 12);
-    assert.deepEqual(body.missingFields[1], {
+    assert.match(body.message, /faltan 13 campos obligatorios/);
+    assert.equal(body.missingFields.length, 13);
+    assert.deepEqual(body.missingFields[2], {
       step: "contact",
       field: "messageContactGivenNames",
       label: "Nombres del contacto para mensajes",
@@ -228,9 +236,9 @@ describe("API del formulario de inscripción", () => {
 
     const initial = (await (await context.api(adminToken, path)).json()) as FormBody;
     assert.equal(initial.data.editable, true);
-    assert.equal(initial.data.missingFields.length, 12);
+    assert.equal(initial.data.missingFields.length, 13);
 
-    let remaining = 12;
+    let remaining = 13;
     for (const step of ["contact", "household", "medical", "signature"] as const) {
       const saved = await context.api(adminToken, path, "PATCH", { [step]: completeEnrollmentForm[step] });
       assert.equal(saved.status, 200, step);
@@ -239,9 +247,10 @@ describe("API del formulario de inscripción", () => {
       assert.ok(data.missingFields.every((missing) => missing.step !== step), `quedan faltantes en ${step}`);
       remaining = data.missingFields.length;
     }
-    // El responsable se registra en la ficha del alumno, no con el PATCH del formulario.
+    // El responsable y la dirección se registran en la ficha del alumno, no con el PATCH del formulario.
     assert.deepEqual(fieldsOf((await (await context.api(adminToken, path)).json() as FormBody).data.missingFields), [
       "primaryGuardian",
+      "studentAddress",
     ]);
     const { studentId } = await prisma.enrollment.findUniqueOrThrow({ where: { id: enrollment.id } });
     await context.completeStudentRecord(studentId);
@@ -249,6 +258,8 @@ describe("API del formulario de inscripción", () => {
     const reloaded = (await (await context.api(adminToken, path)).json()) as FormBody;
     assert.deepEqual(reloaded.data.missingFields, []);
     assert.equal(reloaded.data.form.family.hasPrimaryGuardian, true);
+    // La ficha de inscripción (y su PDF) reutiliza la dirección formateada del alumno.
+    assert.equal(reloaded.data.form.family.studentAddress, "4a. calle 3-25, Zona 5, Colonia El Esfuerzo, Mixco, Guatemala");
     assert.equal(reloaded.data.form.contact.authorizedPickups[0].givenNames, "José");
     assert.equal(reloaded.data.form.contact.authorizedPickups[0].firstSurname, "López");
     assert.equal(reloaded.data.form.household?.householdSize, 4);

@@ -38,6 +38,13 @@ import {
 } from "./students";
 import { parseAuthorizedPickups, saveStudentPickups } from "./authorizedPickups";
 import {
+  getStudentAddress,
+  parseAddressInput,
+  parseGuardianAddressBody,
+  saveGuardianAddress,
+  saveStudentAddress,
+} from "./addresses";
+import {
   linkGuardian,
   listStudentGuardians,
   parseGuardianInput,
@@ -401,6 +408,21 @@ export async function handleSchoolRoutes(
         sendJson(request, response, 201, { data });
         return true;
       }
+      if (studentPath.tail[0] === "address" && request.method === "GET") {
+        requirePermission(principal, "student.read");
+        const data = await wrapDomain(() => getStudentAddress(principal.schoolId, studentPath.id));
+        sendJson(request, response, 200, { data });
+        return true;
+      }
+      if (studentPath.tail[0] === "address" && request.method === "PUT") {
+        requirePermission(principal, "student.write");
+        const body = await readJson(request);
+        const data = await wrapDomain(async () =>
+          saveStudentAddress(principal.schoolId, principal.id, studentPath.id, parseAddressInput(body)),
+        );
+        sendJson(request, response, 200, { data });
+        return true;
+      }
       if (studentPath.tail[0] === "photo" && request.method === "GET") {
         requirePermission(principal, "student.read");
         const photo = await wrapDomain(() => getStudentPhoto(principal.schoolId, studentPath.id));
@@ -451,6 +473,18 @@ export async function handleSchoolRoutes(
       const body = await readJson(request);
       const data = await wrapDomain(async () =>
         updateGuardian(principal.schoolId, principal.id, guardianPath.id, parseGuardianInput(body, true)),
+      );
+      sendJson(request, response, 200, { data });
+      return true;
+    }
+
+    // --- Direcciones de responsables (MA-28) ---
+    if (guardianPath && guardianPath.tail.length === 1 && guardianPath.tail[0] === "address" && request.method === "PUT") {
+      const principal = await authenticatedPrincipal(request);
+      requirePermission(principal, "student.write");
+      const body = await readJson(request);
+      const data = await wrapDomain(async () =>
+        saveGuardianAddress(principal.schoolId, principal.id, guardianPath.id, parseGuardianAddressBody(body)),
       );
       sendJson(request, response, 200, { data });
       return true;

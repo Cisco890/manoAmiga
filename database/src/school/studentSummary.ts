@@ -1,5 +1,6 @@
 import type { DocumentStatus, DocumentType } from "../generated/prisma/client";
 import { prisma } from "../prisma";
+import { addressSelect, publicAddress } from "./addresses";
 import { maxAuthorizedPickups, pickupSelect } from "./authorizedPickups";
 import { buildFullName } from "./personName";
 import { currentEnrollmentOrder, getStudent } from "./students";
@@ -22,6 +23,7 @@ export async function getStudentSummary(schoolId: string, studentId: string) {
   const row = await prisma.student.findFirstOrThrow({
     where: { id: studentId, schoolId, deletedAt: null },
     select: {
+      address: { select: addressSelect },
       photos: { where: { isActive: true }, take: 1, orderBy: { capturedAt: "desc" },
         select: { id: true, capturedAt: true } },
       authorizedPickups: { where: { active: true }, orderBy: { sortOrder: "asc" }, select: pickupSelect },
@@ -67,6 +69,7 @@ export async function getStudentSummary(schoolId: string, studentId: string) {
   return {
     student,
     photo: row.photos[0] ?? null,
+    address: publicAddress(row.address),
     currentEnrollment: current ? { id: current.id, status: current.status, grade: current.grade, academicCycle: current.academicCycle } : null,
     responsible: guardians[0] ?? (contactName ? {
       id: null, fullName: contactName, relationship: "ENROLLMENT_CONTACT", customRelationship: current!.messageContactRelationship,

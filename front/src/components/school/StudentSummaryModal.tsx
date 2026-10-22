@@ -4,6 +4,7 @@ import { getStudentSummary, saveStudentPickups, type AuthorizedPickup, type Docu
 import { useAuth } from '../../auth/useAuth.ts';
 import { formatDate } from '../../lib/dates.ts';
 import { enrollmentStatusLabels, studentStatusLabels } from '../../lib/labels.ts';
+import { StudentAddressPanel } from './AddressForm.tsx';
 import { GuardiansPanel } from './GuardiansPanel.tsx';
 import modal from './FormModal.module.css';
 import shared from '../../pages/schoolShared.module.css';
@@ -129,6 +130,10 @@ export function StudentSummaryModal({ studentId, onClose }: { studentId: string;
                 {managingGuardians
                   ? <GuardiansPanel studentId={studentId} request={request} canWrite onChange={() => setRetry((value) => value + 1)} />
                   : can('student.write') ? <button type="button" className="btn" onClick={() => setManagingGuardians(true)}>Administrar responsables</button> : null}
+              </section>
+              <section className={styles.section} aria-labelledby="student-address-title">
+                <h3 id="student-address-title">Dirección</h3>
+                <StudentAddressPanel studentId={studentId} request={request} canWrite={can('student.write')} />
               </section>
               <section className={styles.section} aria-labelledby="student-sponsors-title">
                 <h3 id="student-sponsors-title">Padrino</h3>

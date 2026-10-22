@@ -48,6 +48,7 @@ function renderDirectory(options: {
     if (path.startsWith('/students?')) return options.list ? options.list(path) : json({ data: [student], pagination: { page: 1, limit: 10, total: 20, pages: 2 } });
     if (path.endsWith('/summary')) return json({ data: summary });
     if (path.endsWith('/photo')) return new Response(new Blob(['photo'], { type: 'image/png' }));
+    if (path.endsWith('/address')) return json({ data: { address: null, sharedWith: [] } });
     if (path.endsWith('/authorized-pickups') && init.method === 'PUT') {
       if (options.failSave) return json({ message: 'No fue posible guardar autorizados.' }, 500);
       summary = { ...summary, authorizedPickups: JSON.parse(String(init.body)).authorizedPickups };
