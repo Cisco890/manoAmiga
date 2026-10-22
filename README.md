@@ -310,6 +310,43 @@ con 2,000 alumnos e inscripciones adicionales que exige menos de 2 segundos por
 búsqueda común. La medición valida el entorno de prueba; en producción también
 depende del volumen real, la infraestructura y la red.
 
+## Padres, madres y tutores
+
+Un responsable (padre, madre o tutor) se registra **una sola vez** y se vincula a cada
+alumno. Así, al inscribir a un hermano se busca al responsable existente y se reutiliza
+sin volver a digitar sus datos. Se administra desde la ficha del alumno
+(**Administrar responsables**) o desde el paso **Responsables** del formulario de inscripción.
+
+- Cada vínculo (`student_guardians`) guarda el **parentesco** (madre, padre, tutor,
+  abuelo/a, hermano/a u otro con su descripción), si **vive con el alumno**, si es el
+  **responsable principal**, si es representante legal y si está autorizado para trámites.
+- Solo hay **un responsable principal** por alumno. Marcar a otro desmarca al anterior, y
+  el primer responsable vigente queda como principal si no se indica. El índice único
+  parcial `student_guardians_one_primary_per_student` (migración
+  `20261022180000_guardian_primary_contact`) lo garantiza también en la base de datos.
+- El **DPI** se guarda cifrado con AES-256-GCM, se busca por hash y se muestra enmascarado.
+  No puede haber dos responsables con el mismo DPI: la API sugiere buscarlo y vincularlo.
+- Editar los datos personales del responsable actualiza la información para todos sus
+  alumnos. Desvincular no borra el registro: marca el vínculo como inactivo con fecha de fin.
+- La búsqueda de responsables solo muestra los vinculados a alumnos del mismo colegio.
+
+| Endpoint | Permiso | Resultado |
+| --- | --- | --- |
+| `GET /api/guardians?q=` | `student.read` | Busca responsables por nombre o DPI completo, con sus alumnos. |
+| `PATCH /api/guardians/:id` | `student.write` | Actualiza los datos personales del responsable. |
+| `GET /api/students/:id/guardians` | `student.read` | Responsables vigentes, con los hermanos que comparten cada uno. |
+| `POST /api/students/:id/guardians` | `student.write` | Vincula uno existente (`guardianId`) o registra uno nuevo (`guardian`). |
+| `PATCH /api/students/:id/guardians/:linkId` | `student.write` | Cambia parentesco, convivencia o responsabilidad principal. |
+| `DELETE /api/students/:id/guardians/:linkId` | `student.write` | Termina el vínculo y conserva el historial. |
+
+> **Índices parciales y Prisma:** Prisma no representa índices parciales, así que
+> `student_guardians_one_primary_per_student` y `enrollments_one_open_per_student_cycle`
+> no aparecen en `schema.prisma`. Igual que con los índices trigram, al crear una migración
+> con `npx prisma migrate dev --create-only` revise el SQL y borre cualquier `DROP INDEX`
+> de estos índices antes de aplicarla.
+
+Las pruebas están en `database/test/guardians.test.ts`.
+
 ## Inscripciones
 
 Flujo de estados: Borrador → Pendiente de revisión → Incompleta/Aprobada → Cerrada. Un cambio de grado en el mismo ciclo cierra la inscripción anterior y crea una nueva, para conservar el historial.
@@ -329,6 +366,7 @@ La secretaría completa cada inscripción en Borrador o Incompleta con el botón
 
 | Paso | Campos obligatorios |
 | --- | --- |
+| Responsables | Un padre, madre o tutor vigente marcado como responsable principal. Se administra en la ficha del alumno, así que sirve para todas sus inscripciones. |
 | Contacto y salida | Nombre, teléfono y parentesco del contacto para mensajes. Al menos una persona autorizada para recoger al alumno (máximo 3), salvo que pueda retirarse solo. |
 | Hogar | Con quién vive el alumno (al menos una opción; si marca "Otros", el detalle) y número de personas en el hogar. |
 | Salud | Tipo de sangre o "se desconoce". El detalle de enfermedades, alergias a medicamentos o vacunas pendientes cuando se marcan. |
@@ -337,7 +375,7 @@ La secretaría completa cada inscripción en Borrador o Incompleta con el botón
 - `GET /api/enrollments/:id/form` devuelve los datos guardados y `missingFields`: la lista de faltantes, cada uno con su paso y una etiqueta en español. El indicador de pasos y el paso **Revisar y enviar** usan esa lista.
 - La API no permite pasar a Pendiente de revisión con campos faltantes: responde `422` con `missingFields`. La validación vive en `database/src/school/enrollmentForm.ts` (`missingEnrollmentFields`) y se ejecuta dentro de la misma transacción del cambio de estado.
 - Ver y editar el formulario requiere `enrollment.write`, porque incluye datos médicos. Solo se edita en Borrador o Incompleta.
-- Pendiente para otra historia: encargados (padre, madre o tutor), perfil religioso y documento de identificación de las personas autorizadas, que debe guardarse cifrado.
+- Pendiente para otra historia: perfil religioso y documento de identificación de las personas autorizadas, que debe guardarse cifrado.
 
 ### Aprobación, devolución y rechazo
 

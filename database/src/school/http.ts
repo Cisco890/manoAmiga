@@ -37,6 +37,17 @@ import {
   updateStudent,
 } from "./students";
 import { parseAuthorizedPickups, saveStudentPickups } from "./authorizedPickups";
+import {
+  linkGuardian,
+  listStudentGuardians,
+  parseGuardianInput,
+  parseLinkInput,
+  parseNewLinkBody,
+  searchGuardians,
+  unlinkGuardian,
+  updateGuardian,
+  updateGuardianLink,
+} from "./guardians";
 import { getStudentPhoto, getStudentSummary } from "./studentSummary";
 import { downloadPrivateObject } from "../storage/supabase-storage";
 
@@ -375,6 +386,21 @@ export async function handleSchoolRoutes(
         sendJson(request, response, 200, { data });
         return true;
       }
+      if (studentPath.tail[0] === "guardians" && request.method === "GET") {
+        requirePermission(principal, "student.read");
+        const data = await wrapDomain(() => listStudentGuardians(principal.schoolId, studentPath.id));
+        sendJson(request, response, 200, { data });
+        return true;
+      }
+      if (studentPath.tail[0] === "guardians" && request.method === "POST") {
+        requirePermission(principal, "student.write");
+        const body = await readJson(request);
+        const data = await wrapDomain(async () =>
+          linkGuardian(principal.schoolId, principal.id, studentPath.id, parseNewLinkBody(body)),
+        );
+        sendJson(request, response, 201, { data });
+        return true;
+      }
       if (studentPath.tail[0] === "photo" && request.method === "GET") {
         requirePermission(principal, "student.read");
         const photo = await wrapDomain(() => getStudentPhoto(principal.schoolId, studentPath.id));
@@ -385,6 +411,51 @@ export async function handleSchoolRoutes(
         return true;
       }
     }
+    if (
+      studentPath &&
+      studentPath.tail.length === 2 &&
+      studentPath.tail[0] === "guardians" &&
+      uuidRe.test(studentPath.tail[1]) &&
+      (request.method === "PATCH" || request.method === "DELETE")
+    ) {
+      const principal = await authenticatedPrincipal(request);
+      requirePermission(principal, "student.write");
+      const linkId = studentPath.tail[1];
+      if (request.method === "DELETE") {
+        await wrapDomain(() => unlinkGuardian(principal.schoolId, principal.id, studentPath.id, linkId));
+        sendJson(request, response, 200, { data: { id: linkId } });
+        return true;
+      }
+      const body = await readJson(request);
+      if (!isObject(body)) throw new DomainError(400, "El cuerpo debe ser un objeto JSON");
+      const data = await wrapDomain(async () =>
+        updateGuardianLink(principal.schoolId, principal.id, studentPath.id, linkId, parseLinkInput(body, true)),
+      );
+      sendJson(request, response, 200, { data });
+      return true;
+    }
+
+    // --- Padres, madres y tutores (MA-27) ---
+    if (request.method === "GET" && url.pathname === "/api/guardians") {
+      const principal = await authenticatedPrincipal(request);
+      requirePermission(principal, "student.read");
+      const data = await wrapDomain(() => searchGuardians(principal.schoolId, searchQuery(url) ?? ""));
+      sendJson(request, response, 200, { data });
+      return true;
+    }
+
+    const guardianPath = pathId(url.pathname, "/api/guardians/");
+    if (guardianPath && guardianPath.tail.length === 0 && request.method === "PATCH") {
+      const principal = await authenticatedPrincipal(request);
+      requirePermission(principal, "student.write");
+      const body = await readJson(request);
+      const data = await wrapDomain(async () =>
+        updateGuardian(principal.schoolId, principal.id, guardianPath.id, parseGuardianInput(body, true)),
+      );
+      sendJson(request, response, 200, { data });
+      return true;
+    }
+
     if (studentPath && studentPath.tail.length === 0 && request.method === "GET") {
       const principal = await authenticatedPrincipal(request);
       requirePermission(principal, "student.read");

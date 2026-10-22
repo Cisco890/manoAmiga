@@ -10,6 +10,7 @@ import {
 import { completeEnrollmentForm, createSchoolTestContext } from "./support/schoolFixtures";
 
 const emptyForm: EnrollmentFormData = {
+  family: { hasPrimaryGuardian: false },
   contact: {
     messageContactGivenNames: null,
     messageContactFirstSurname: null,
@@ -30,6 +31,7 @@ const emptyForm: EnrollmentFormData = {
 };
 
 const fullForm: EnrollmentFormData = {
+  family: { hasPrimaryGuardian: true },
   contact: {
     messageContactGivenNames: "María",
     messageContactFirstSurname: "López",
@@ -82,6 +84,7 @@ describe("missingEnrollmentFields", () => {
   test("un formulario vacío lista todos los obligatorios, agrupados por paso", () => {
     const missing = missingEnrollmentFields(emptyForm);
     assert.deepEqual(fieldsOf(missing), [
+      "primaryGuardian",
       "messageContactGivenNames",
       "messageContactFirstSurname",
       "messageContactPhone",
@@ -94,7 +97,7 @@ describe("missingEnrollmentFields", () => {
       "signerFirstSurname",
       "signerRelationship",
     ]);
-    assert.deepEqual([...new Set(missing.map(({ step }) => step))], ["contact", "household", "medical", "signature"]);
+    assert.deepEqual([...new Set(missing.map(({ step }) => step))], ["family", "contact", "household", "medical", "signature"]);
     assert.ok(missing.every(({ label }) => label.length > 0));
   });
 
@@ -121,6 +124,13 @@ describe("missingEnrollmentFields", () => {
     const withoutPermission = { ...contact, mayLeaveAlone: false };
     assert.deepEqual(fieldsOf(missingEnrollmentFields({ ...fullForm, contact: withoutPermission })), [
       "authorizedPickups",
+    ]);
+  });
+
+  test("exige un responsable principal vigente (MA-27)", () => {
+    const form = { ...fullForm, family: { hasPrimaryGuardian: false } };
+    assert.deepEqual(missingEnrollmentFields(form), [
+      { step: "family", field: "primaryGuardian", label: "Padre, madre o tutor marcado como responsable principal" },
     ]);
   });
 
@@ -200,9 +210,9 @@ describe("API del formulario de inscripción", () => {
     });
     assert.equal(response.status, 422);
     const body = (await response.json()) as { message: string; missingFields: MissingField[] };
-    assert.match(body.message, /faltan 11 campos obligatorios/);
-    assert.equal(body.missingFields.length, 11);
-    assert.deepEqual(body.missingFields[0], {
+    assert.match(body.message, /faltan 12 campos obligatorios/);
+    assert.equal(body.missingFields.length, 12);
+    assert.deepEqual(body.missingFields[1], {
       step: "contact",
       field: "messageContactGivenNames",
       label: "Nombres del contacto para mensajes",
@@ -218,9 +228,9 @@ describe("API del formulario de inscripción", () => {
 
     const initial = (await (await context.api(adminToken, path)).json()) as FormBody;
     assert.equal(initial.data.editable, true);
-    assert.equal(initial.data.missingFields.length, 11);
+    assert.equal(initial.data.missingFields.length, 12);
 
-    let remaining = 11;
+    let remaining = 12;
     for (const step of ["contact", "household", "medical", "signature"] as const) {
       const saved = await context.api(adminToken, path, "PATCH", { [step]: completeEnrollmentForm[step] });
       assert.equal(saved.status, 200, step);
@@ -229,9 +239,16 @@ describe("API del formulario de inscripción", () => {
       assert.ok(data.missingFields.every((missing) => missing.step !== step), `quedan faltantes en ${step}`);
       remaining = data.missingFields.length;
     }
-    assert.equal(remaining, 0);
+    // El responsable se registra en la ficha del alumno, no con el PATCH del formulario.
+    assert.deepEqual(fieldsOf((await (await context.api(adminToken, path)).json() as FormBody).data.missingFields), [
+      "primaryGuardian",
+    ]);
+    const { studentId } = await prisma.enrollment.findUniqueOrThrow({ where: { id: enrollment.id } });
+    await context.completeStudentRecord(studentId);
 
     const reloaded = (await (await context.api(adminToken, path)).json()) as FormBody;
+    assert.deepEqual(reloaded.data.missingFields, []);
+    assert.equal(reloaded.data.form.family.hasPrimaryGuardian, true);
     assert.equal(reloaded.data.form.contact.authorizedPickups[0].givenNames, "José");
     assert.equal(reloaded.data.form.contact.authorizedPickups[0].firstSurname, "López");
     assert.equal(reloaded.data.form.household?.householdSize, 4);

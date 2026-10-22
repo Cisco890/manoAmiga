@@ -21,6 +21,7 @@ export const openApiDocument = {
     { name: "Autenticación" },
     { name: "Usuarios" },
     { name: "Alumnos" },
+    { name: "Responsables" },
   ],
   paths: {
     "/api/students": {
@@ -73,6 +74,70 @@ export const openApiDocument = {
         parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
         description: "Requiere student.read. Entrega la imagen desde almacenamiento privado mediante la API, sin exponer la clave ni la ruta del objeto. La respuesta no se almacena en caché.",
         responses: { "200": { description: "Fotografía", content: { "image/png": { schema: { type: "string", format: "binary" } }, "image/jpeg": { schema: { type: "string", format: "binary" } }, "image/webp": { schema: { type: "string", format: "binary" } } } }, "401": errorResponse, "403": errorResponse, "404": errorResponse, "415": errorResponse, "502": errorResponse, "503": errorResponse },
+      },
+    },
+    "/api/guardians": {
+      get: {
+        tags: ["Responsables"], summary: "Buscar padres, madres o tutores para reutilizarlos", security: [{ bearerAuth: [] }],
+        description: "Requiere student.read. Busca por nombre (palabras en cualquier orden) o DPI completo entre los responsables vinculados a alumnos del colegio. Devuelve hasta 10 resultados con el DPI enmascarado y los alumnos que ya tienen asignados.",
+        parameters: [{ name: "q", in: "query", required: true, schema: { type: "string", minLength: 2, maxLength: 200 } }],
+        responses: { "200": { description: "Responsables en data, cada uno con students." }, "400": errorResponse, "401": errorResponse, "403": errorResponse },
+      },
+    },
+    "/api/guardians/{id}": {
+      patch: {
+        tags: ["Responsables"], summary: "Actualizar los datos personales de un responsable", security: [{ bearerAuth: [] }],
+        description: "Requiere student.write. El cambio aplica a todos los alumnos vinculados. dpi null lo elimina; omitirlo lo conserva. El DPI se cifra (AES-256-GCM) y debe ser único.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/GuardianInput" } } } },
+        responses: { "200": { description: "Responsable actualizado" }, "400": errorResponse, "401": errorResponse, "403": errorResponse, "404": errorResponse, "409": errorResponse },
+      },
+    },
+    "/api/students/{id}/guardians": {
+      get: {
+        tags: ["Responsables"], summary: "Responsables vigentes del alumno", security: [{ bearerAuth: [] }],
+        description: "Requiere student.read. Cada vínculo incluye parentesco, convivencia, responsabilidad principal, los datos del responsable (DPI enmascarado) y otherStudents: los hermanos que comparten ese responsable.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        responses: { "200": { description: "Vínculos en data, el principal primero." }, "401": errorResponse, "403": errorResponse, "404": errorResponse },
+      },
+      post: {
+        tags: ["Responsables"], summary: "Vincular un responsable existente o registrar uno nuevo", security: [{ bearerAuth: [] }],
+        description: "Requiere student.write. Envíe guardianId para reutilizar un responsable (por ejemplo, el de un hermano) o guardian para registrarlo. Solo puede haber un responsable principal: marcar primaryContact desmarca al anterior, y el primer responsable vigente queda como principal si no se indica. Un vínculo terminado con el mismo parentesco se reactiva.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        requestBody: { required: true, content: { "application/json": { schema: {
+          type: "object", required: ["relationship"], additionalProperties: false,
+          properties: {
+            guardianId: { type: "string", format: "uuid" },
+            guardian: { $ref: "#/components/schemas/GuardianInput" },
+            relationship: { type: "string", enum: ["MOTHER", "FATHER", "TUTOR", "GRANDPARENT", "SIBLING", "OTHER"] },
+            customRelationship: { type: ["string", "null"], maxLength: 80, description: "Obligatorio cuando relationship es OTHER" },
+            livesWithStudent: { type: "boolean" },
+            primaryContact: { type: "boolean" },
+            legalRepresentative: { type: "boolean" },
+            authorizedForSchoolProcedures: { type: "boolean" },
+          },
+        } } } },
+        responses: { "201": { description: "Vínculo creado" }, "400": errorResponse, "401": errorResponse, "403": errorResponse, "404": errorResponse, "409": errorResponse },
+      },
+    },
+    "/api/students/{id}/guardians/{linkId}": {
+      patch: {
+        tags: ["Responsables"], summary: "Editar parentesco, convivencia o responsabilidad principal", security: [{ bearerAuth: [] }],
+        description: "Requiere student.write. Acepta los mismos campos del vínculo que el POST, todos opcionales.",
+        parameters: [
+          { name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } },
+          { name: "linkId", in: "path", required: true, schema: { type: "string", format: "uuid" } },
+        ],
+        responses: { "200": { description: "Vínculo actualizado" }, "400": errorResponse, "401": errorResponse, "403": errorResponse, "404": errorResponse, "409": errorResponse },
+      },
+      delete: {
+        tags: ["Responsables"], summary: "Desvincular un responsable del alumno", security: [{ bearerAuth: [] }],
+        description: "Requiere student.write. No borra el registro: marca el vínculo como inactivo con fecha de fin para conservar el historial.",
+        parameters: [
+          { name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } },
+          { name: "linkId", in: "path", required: true, schema: { type: "string", format: "uuid" } },
+        ],
+        responses: { "200": { description: "Vínculo terminado" }, "401": errorResponse, "403": errorResponse, "404": errorResponse },
       },
     },
     "/api/health": {
@@ -301,6 +366,23 @@ export const openApiDocument = {
       bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "JWT" },
     },
     schemas: {
+      GuardianInput: {
+        type: "object", additionalProperties: false,
+        description: "Datos de padre, madre o tutor. givenNames y firstSurname son obligatorios al registrar.",
+        properties: {
+          givenNames: { type: "string", minLength: 1, maxLength: 120 },
+          firstSurname: { type: "string", minLength: 1, maxLength: 80 },
+          secondSurname: { type: ["string", "null"], maxLength: 80 },
+          marriedSurname: { type: ["string", "null"], maxLength: 80 },
+          dpi: { type: ["string", "null"], description: "13 a 20 dígitos; se guarda cifrado y se devuelve enmascarado" },
+          mobilePhone: { type: ["string", "null"], maxLength: 30 },
+          homePhone: { type: ["string", "null"], maxLength: 30 },
+          primaryEmail: { type: ["string", "null"], format: "email", maxLength: 254 },
+          occupation: { type: ["string", "null"], maxLength: 120 },
+          workplaceName: { type: ["string", "null"], maxLength: 180 },
+          workplacePhone: { type: ["string", "null"], maxLength: 30 },
+        },
+      },
       Error: {
         type: "object",
         required: ["message"],

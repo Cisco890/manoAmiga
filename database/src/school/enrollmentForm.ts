@@ -1,6 +1,7 @@
 import type { EnrollmentStatus, Prisma } from "../generated/prisma/client";
 import { prisma } from "../prisma";
 import { parseAuthorizedPickups, replaceStudentPickups } from "./authorizedPickups";
+import { hasPrimaryGuardian } from "./guardians";
 export { maxAuthorizedPickups } from "./authorizedPickups";
 
 /**
@@ -12,6 +13,7 @@ export { maxAuthorizedPickups } from "./authorizedPickups";
  */
 
 export const formSteps = [
+  { id: "family", label: "Responsables" },
   { id: "contact", label: "Contacto y salida" },
   { id: "household", label: "Hogar" },
   { id: "medical", label: "Salud" },
@@ -30,6 +32,10 @@ export type PersonNameInput = {
 };
 
 export type EnrollmentFormData = {
+  /** Datos del alumno que se administran fuera del formulario (responsables). Solo lectura aquí. */
+  family: {
+    hasPrimaryGuardian: boolean;
+  };
   contact: {
     messageContactGivenNames: string | null;
     messageContactFirstSurname: string | null;
@@ -84,6 +90,10 @@ const filled = (value: string | null | undefined) => Boolean(value?.trim());
 export function missingEnrollmentFields(form: EnrollmentFormData): MissingField[] {
   const missing: MissingField[] = [];
   const add = (step: FormStepId, field: string, label: string) => missing.push({ step, field, label });
+
+  if (!form.family.hasPrimaryGuardian) {
+    add("family", "primaryGuardian", "Padre, madre o tutor marcado como responsable principal");
+  }
 
   const { contact } = form;
   if (!filled(contact.messageContactGivenNames)) {
@@ -201,8 +211,11 @@ const formSelect = {
 type FormRow = Prisma.EnrollmentGetPayload<{ select: typeof formSelect }>;
 type Client = Prisma.TransactionClient | typeof prisma;
 
-function toFormData(row: FormRow): EnrollmentFormData {
+type FormExtras = { hasPrimaryGuardian: boolean };
+
+function toFormData(row: FormRow, extras: FormExtras): EnrollmentFormData {
   return {
+    family: { hasPrimaryGuardian: extras.hasPrimaryGuardian },
     contact: {
       messageContactGivenNames: row.messageContactGivenNames,
       messageContactFirstSurname: row.messageContactFirstSurname,
@@ -235,11 +248,12 @@ async function findFormRow(client: Client, schoolId: string, enrollmentId: strin
     select: formSelect,
   });
   if (!row) throw Object.assign(new Error("Inscripción no encontrada"), { status: 404 });
-  return row;
+  const extras: FormExtras = { hasPrimaryGuardian: await hasPrimaryGuardian(client, row.studentId) };
+  return { row, extras };
 }
 
-function publicForm(row: FormRow) {
-  const form = toFormData(row);
+function publicForm({ row, extras }: Awaited<ReturnType<typeof findFormRow>>) {
+  const form = toFormData(row, extras);
   return {
     enrollmentId: row.id,
     status: row.status,
@@ -257,7 +271,8 @@ export async function getEnrollmentForm(schoolId: string, enrollmentId: string) 
 
 /** Se usa dentro de la transición a PENDING_REVIEW para validar con los datos ya confirmados. */
 export async function assertEnrollmentFormComplete(client: Client, schoolId: string, enrollmentId: string) {
-  const missing = missingEnrollmentFields(toFormData(await findFormRow(client, schoolId, enrollmentId)));
+  const { row, extras } = await findFormRow(client, schoolId, enrollmentId);
+  const missing = missingEnrollmentFields(toFormData(row, extras));
   if (missing.length > 0) throw new MissingFieldsError(missing);
 }
 
@@ -431,7 +446,7 @@ export async function saveEnrollmentForm(
   patch: ReturnType<typeof parseEnrollmentFormPatch>,
 ) {
   const updated = await prisma.$transaction(async (tx) => {
-    const current = await findFormRow(tx, schoolId, enrollmentId);
+    const { row: current } = await findFormRow(tx, schoolId, enrollmentId);
     if (!editableStatuses.includes(current.status)) {
       throw Object.assign(
         new Error("Solo se pueden editar inscripciones en Borrador o Incompleta"),

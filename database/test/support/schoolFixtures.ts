@@ -37,6 +37,14 @@ export const completeEnrollmentForm = {
   },
 };
 
+/** Responsable principal nuevo para POST /students/:id/guardians (MA-27). */
+export const primaryGuardianLink = {
+  relationship: "MOTHER",
+  primaryContact: true,
+  livesWithStudent: true,
+  guardian: { givenNames: "María", firstSurname: "López", mobilePhone: "5555-1234" },
+};
+
 /**
  * Levanta la API en un puerto libre y crea datos desechables (usuarios, ciclos y alumnos).
  * `cleanup()` elimina todo lo creado, incluidas las inscripciones de esos alumnos.
@@ -48,6 +56,7 @@ export async function createSchoolTestContext(label: string) {
   const userIds: string[] = [];
   const studentIds: string[] = [];
   const cycleIds: string[] = [];
+  const guardianIds: string[] = [];
 
   const [school, adminRole, collaboratorRole] = await Promise.all([
     prisma.school.findUniqueOrThrow({ where: { code: "MANO_AMIGA" }, select: { id: true } }),
@@ -168,10 +177,26 @@ export async function createSchoolTestContext(label: string) {
     });
   }
 
+  /** Completa los datos del alumno que exige el envío a revisión: un responsable principal. */
+  async function completeStudentRecord(studentId: string) {
+    const guardian = await prisma.guardian.create({
+      data: {
+        givenNames: "María",
+        firstSurname: "López",
+        searchName: "María López",
+        studentLinks: { create: { studentId, relationship: "MOTHER", primaryContact: true } },
+      },
+      select: { id: true },
+    });
+    guardianIds.push(guardian.id);
+    return guardian;
+  }
+
   async function cleanup() {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await prisma.enrollment.deleteMany({ where: { studentId: { in: studentIds } } });
     await prisma.student.deleteMany({ where: { id: { in: studentIds } } });
+    await prisma.guardian.deleteMany({ where: { id: { in: guardianIds } } });
     await prisma.academicCycle.deleteMany({ where: { id: { in: cycleIds } } });
     await prisma.auditEvent.deleteMany({ where: { userId: { in: userIds } } });
     await prisma.user.deleteMany({ where: { id: { in: userIds } } });
@@ -186,6 +211,7 @@ export async function createSchoolTestContext(label: string) {
     createCycle,
     createStudent,
     createEnrollmentRow,
+    completeStudentRecord,
     cleanup,
   };
 }

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import bcrypt from "bcryptjs";
 import { prisma } from "../src/prisma";
-import { completeEnrollmentForm } from "./support/schoolFixtures";
+import { completeEnrollmentForm, primaryGuardianLink } from "./support/schoolFixtures";
 
 process.env.JWT_ACCESS_SECRET = "secreto-de-integracion-con-mas-de-32-bytes";
 process.env.FRONTEND_ORIGIN = "http://localhost:5173";
@@ -19,6 +19,7 @@ const createdStudentIds: string[] = [];
 const createdEnrollmentIds: string[] = [];
 const createdCycleIds: string[] = [];
 const createdGradeIds: string[] = [];
+const createdGuardianIds: string[] = [];
 
 before(async () => {
   const [school, adminRole] = await Promise.all([
@@ -56,6 +57,9 @@ after(async () => {
   }
   if (createdStudentIds.length) {
     await prisma.student.deleteMany({ where: { id: { in: createdStudentIds } } });
+  }
+  if (createdGuardianIds.length) {
+    await prisma.guardian.deleteMany({ where: { id: { in: createdGuardianIds } } });
   }
   if (createdCycleIds.length) {
     await prisma.academicCycle.deleteMany({ where: { id: { in: createdCycleIds } } });
@@ -186,6 +190,15 @@ test("ciclos, grados, alumnos e inscripciones cumplen el flujo escolar", async (
   };
   createdStudentIds.push(studentBody.data.id);
   assert.equal(studentBody.data.hasCui, true);
+
+  // MA-27: el envío a revisión exige un responsable principal.
+  const guardianResponse = await fetch(`${baseUrl}/api/students/${studentBody.data.id}/guardians`, {
+    method: "POST",
+    headers: auth(token),
+    body: JSON.stringify(primaryGuardianLink),
+  });
+  assert.equal(guardianResponse.status, 201);
+  createdGuardianIds.push(((await guardianResponse.json()) as { data: { guardian: { id: string } } }).data.guardian.id);
 
   const duplicateCui = await fetch(`${baseUrl}/api/students`, {
     method: "POST",

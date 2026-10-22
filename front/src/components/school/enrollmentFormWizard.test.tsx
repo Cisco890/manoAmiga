@@ -21,6 +21,7 @@ const enrollment = {
 } as Enrollment;
 
 const emptyForm: EnrollmentFormData = {
+  family: { hasPrimaryGuardian: false },
   contact: {
     messageContactGivenNames: null,
     messageContactFirstSurname: null,
@@ -41,6 +42,7 @@ const emptyForm: EnrollmentFormData = {
 };
 
 const missingAll: MissingField[] = [
+  { step: 'family', field: 'primaryGuardian', label: 'Padre, madre o tutor marcado como responsable principal' },
   { step: 'contact', field: 'messageContactGivenNames', label: 'Nombres del contacto para mensajes' },
   { step: 'contact', field: 'messageContactFirstSurname', label: 'Primer apellido del contacto para mensajes' },
   { step: 'contact', field: 'authorizedPickups', label: 'Al menos una persona autorizada para recoger al alumno' },
@@ -68,7 +70,7 @@ const json = (status: number, body: unknown) =>
 
 function renderWizard(
   handler: (path: string, init: RequestInit) => Response,
-  initialStep: 'contact' | 'review' = 'contact',
+  initialStep: 'family' | 'contact' | 'review' = 'contact',
 ) {
   const request = vi.fn(async (path: string, init: RequestInit = {}) => handler(path, init));
   const onSubmitted = vi.fn(async () => {});
@@ -92,6 +94,7 @@ describe('formulario de inscripción por pasos', () => {
     renderWizard(() => json(200, formResponse()));
     const steps = within(await screen.findByRole('navigation', { name: 'Pasos del formulario' }));
 
+    expect(steps.getByRole('button', { name: /Responsables.*1 pendientes/ })).toBeTruthy();
     expect(steps.getByRole('button', { name: /Contacto y salida.*3 pendientes/ })).toBeTruthy();
     expect(steps.getByRole('button', { name: /Hogar.*1 pendientes/ })).toBeTruthy();
     expect(steps.getByRole('button', { name: /Salud/ }).textContent).not.toMatch(/\d+$/);
@@ -100,7 +103,8 @@ describe('formulario de inscripción por pasos', () => {
   it('el paso de revisión lista los faltantes por paso y no permite enviar', async () => {
     const { request } = renderWizard(() => json(200, formResponse()), 'review');
 
-    expect(await screen.findByText('Faltan 5 campos obligatorios')).toBeTruthy();
+    expect(await screen.findByText('Faltan 6 campos obligatorios')).toBeTruthy();
+    expect(screen.getByText('Padre, madre o tutor marcado como responsable principal')).toBeTruthy();
     expect(screen.getByText('Al menos una persona autorizada para recoger al alumno')).toBeTruthy();
     expect((screen.getByRole('button', { name: 'Enviar a revisión' }) as HTMLButtonElement).disabled).toBe(true);
 
@@ -130,7 +134,7 @@ describe('formulario de inscripción por pasos', () => {
       messageContactFirstSurname: 'López',
     });
     expect(await screen.findByText('Borrador guardado.')).toBeTruthy();
-    expect(screen.getByRole('button', { name: /^1\s*Contacto y salida$/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^2\s*Contacto y salida$/ })).toBeTruthy();
   });
 
   it('Siguiente guarda el paso y avanza', async () => {
@@ -160,7 +164,7 @@ describe('formulario de inscripción por pasos', () => {
       if (path.endsWith('/status') && init.method === 'PATCH') {
         return json(422, {
           message: 'No se puede enviar a revisión: faltan 1 campo obligatorio.',
-          missingFields: [missingAll[4]],
+          missingFields: [missingAll[5]],
         });
       }
       return json(200, formResponse({ missingFields: [] }));
@@ -170,6 +174,20 @@ describe('formulario de inscripción por pasos', () => {
 
     expect((await screen.findByRole('alert')).textContent).toMatch(/faltan 1 campo/);
     expect(screen.getByText('Nombres de quien firma la inscripción')).toBeTruthy();
+  });
+
+  it('el paso Responsables usa el panel del alumno y no se guarda con el formulario', async () => {
+    const { request } = renderWizard((path) => {
+      if (path === '/students/a-1/guardians') return json(200, { data: [] });
+      return json(200, formResponse());
+    }, 'family');
+    const user = userEvent.setup();
+
+    expect(await screen.findByText('Sin padre, madre o tutor registrado.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Agregar responsable' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Siguiente' }));
+    expect(await screen.findByText('Contacto para mensajes')).toBeTruthy();
+    expect(patches(request, '/form')).toHaveLength(0);
   });
 
   it('muestra el motivo de devolución y bloquea la edición fuera de Borrador o Incompleta', async () => {

@@ -6,6 +6,16 @@ import type {
   Sex,
   StudentStatus,
 } from '../api/school.ts';
+import type { GuardianRelationship } from '../api/guardians.ts';
+
+export const guardianRelationshipLabels: Record<GuardianRelationship, string> = {
+  MOTHER: 'Madre',
+  FATHER: 'Padre',
+  TUTOR: 'Tutor/a',
+  GRANDPARENT: 'Abuelo/a',
+  SIBLING: 'Hermano/a',
+  OTHER: 'Otro',
+};
 
 export const cycleStatusLabels: Record<AcademicCycleStatus, string> = {
   PLANNED: 'Planificado',

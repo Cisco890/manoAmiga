@@ -12,14 +12,16 @@ import {
 } from '../../api/enrollmentForm.ts';
 import type { Enrollment } from '../../api/school.ts';
 import { ApiError } from '../../auth/api.ts';
+import { GuardiansPanel } from './GuardiansPanel.tsx';
 import modalStyles from './FormModal.module.css';
 import styles from './EnrollmentFormWizard.module.css';
 
 type AuthenticatedRequest = (path: string, init?: RequestInit) => Promise<Response>;
 type WizardStep = FormStepId | 'review';
 
-const stepOrder: WizardStep[] = ['contact', 'household', 'medical', 'signature', 'review'];
+const stepOrder: WizardStep[] = ['family', 'contact', 'household', 'medical', 'signature', 'review'];
 const stepLabels: Record<WizardStep, string> = {
+  family: 'Responsables',
   contact: 'Contacto y salida',
   household: 'Hogar',
   medical: 'Salud',
@@ -70,7 +72,7 @@ type EnrollmentFormWizardProps = {
 export function EnrollmentFormWizard({
   enrollment,
   request,
-  initialStep = 'contact',
+  initialStep = 'family',
   onClose,
   onSubmitted,
 }: EnrollmentFormWizardProps) {
@@ -92,6 +94,14 @@ export function EnrollmentFormWizard({
     setMissing(data.missingFields);
   }, []);
 
+  const reloadForm = useCallback(async () => {
+    try {
+      applyForm((await getEnrollmentForm(request, enrollment.id)).data);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'No se pudo actualizar el formulario.');
+    }
+  }, [applyForm, enrollment.id, request]);
+
   useEffect(() => {
     let active = true;
     getEnrollmentForm(request, enrollment.id)
@@ -110,7 +120,8 @@ export function EnrollmentFormWizard({
   const missingIn = (stepId: WizardStep) => missing.filter((field) => field.step === stepId);
 
   async function saveStep(current: WizardStep) {
-    if (!form || !editable || current === 'review') return true;
+    // Los responsables se guardan al instante desde su panel; no forman parte del PATCH.
+    if (!form || !editable || current === 'review' || current === 'family') return true;
     setBusy(true);
     setError('');
     setNotice('');
@@ -218,6 +229,22 @@ export function EnrollmentFormWizard({
           ) : (
             <fieldset className={styles.fieldset} disabled={busy || !editable}>
               <legend className="srOnly">{stepLabels[step]}</legend>
+              {step === 'family' ? (
+                <div className={modalStyles.grid}>
+                  <Section title="Padre, madre o tutor">
+                    <p className={styles.hint}>
+                      Los responsables pertenecen al alumno y se reutilizan entre hermanos y ciclos. Debe haber uno marcado
+                      como responsable principal antes de enviar a revisión.
+                    </p>
+                    <GuardiansPanel
+                      studentId={enrollment.student.id}
+                      request={request}
+                      canWrite={editable}
+                      onChange={() => void reloadForm()}
+                    />
+                  </Section>
+                </div>
+              ) : null}
               {step === 'contact' ? (
                 <ContactStep form={form} update={(values) => updateSection('contact', values)} />
               ) : null}

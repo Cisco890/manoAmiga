@@ -3,7 +3,7 @@ import type { Enrollment, EnrollmentStatus } from './school.ts';
 
 type AuthenticatedRequest = (path: string, init?: RequestInit) => Promise<Response>;
 
-export type FormStepId = 'contact' | 'household' | 'medical' | 'signature';
+export type FormStepId = 'family' | 'contact' | 'household' | 'medical' | 'signature';
 export type MissingField = { step: FormStepId; field: string; label: string };
 
 export type PersonNameInput = {
@@ -18,6 +18,10 @@ export type AuthorizedPickupInput = PersonNameInput & {
 };
 
 export type EnrollmentFormData = {
+  /** Se administra en la ficha del alumno (responsables); el formulario solo lo consulta. */
+  family: {
+    hasPrimaryGuardian: boolean;
+  };
   contact: {
     messageContactGivenNames: string | null;
     messageContactFirstSurname: string | null;
@@ -98,7 +102,7 @@ export async function getEnrollmentForm(request: AuthenticatedRequest, enrollmen
 export async function saveEnrollmentForm(
   request: AuthenticatedRequest,
   enrollmentId: string,
-  patch: Partial<{ [K in FormStepId]: Partial<NonNullable<EnrollmentFormData[K]>> }>,
+  patch: Partial<{ [K in Exclude<FormStepId, 'family'>]: Partial<NonNullable<EnrollmentFormData[K]>> }>,
 ) {
   return parse<{ data: EnrollmentForm }>(
     await request(`/enrollments/${enrollmentId}/form`, {

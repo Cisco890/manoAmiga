@@ -4,6 +4,7 @@ import { getStudentSummary, saveStudentPickups, type AuthorizedPickup, type Docu
 import { useAuth } from '../../auth/useAuth.ts';
 import { formatDate } from '../../lib/dates.ts';
 import { enrollmentStatusLabels, studentStatusLabels } from '../../lib/labels.ts';
+import { GuardiansPanel } from './GuardiansPanel.tsx';
 import modal from './FormModal.module.css';
 import shared from '../../pages/schoolShared.module.css';
 import styles from './StudentSummaryModal.module.css';
@@ -52,6 +53,7 @@ export function StudentSummaryModal({ studentId, onClose }: { studentId: string;
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [notice, setNotice] = useState('');
+  const [managingGuardians, setManagingGuardians] = useState(false);
   const closeButton = useRef<HTMLButtonElement>(null);
   const dialog = useRef<HTMLDivElement>(null);
   const mounted = useRef(true);
@@ -124,6 +126,9 @@ export function StudentSummaryModal({ studentId, onClose }: { studentId: string;
                 <h3 id="student-responsible-title">Responsable</h3>
                 {summary.responsible ? <p>{summary.responsible.fullName}<br /><span className={styles.muted}>{summary.responsible.customRelationship || relationshipLabels[summary.responsible.relationship] || summary.responsible.relationship}{summary.responsible.phone ? ` · ${summary.responsible.phone}` : ''}</span></p> : <p className={styles.muted}>Sin responsable registrado.</p>}
                 {summary.guardians.length > 1 ? <details><summary>Otros responsables</summary><ul className={styles.list}>{summary.guardians.slice(1).map((guardian) => <li key={guardian.id}>{guardian.fullName} · {guardian.customRelationship || relationshipLabels[guardian.relationship] || guardian.relationship}</li>)}</ul></details> : null}
+                {managingGuardians
+                  ? <GuardiansPanel studentId={studentId} request={request} canWrite onChange={() => setRetry((value) => value + 1)} />
+                  : can('student.write') ? <button type="button" className="btn" onClick={() => setManagingGuardians(true)}>Administrar responsables</button> : null}
               </section>
               <section className={styles.section} aria-labelledby="student-sponsors-title">
                 <h3 id="student-sponsors-title">Padrino</h3>

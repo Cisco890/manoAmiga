@@ -61,7 +61,7 @@ export function EnrollmentsPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [decision, setDecision] = useState<{ enrollment: Enrollment; status: ReviewDecision } | null>(null);
-  const [wizard, setWizard] = useState<{ enrollment: Enrollment; step: 'contact' | 'review' } | null>(null);
+  const [wizard, setWizard] = useState<{ enrollment: Enrollment; step: 'family' | 'review' } | null>(null);
   const showActions = canWrite || canApprove;
 
   // Aprobar, devolver o rechazar son decisiones de dirección; el resto, de secretaría.
@@ -281,7 +281,7 @@ export function EnrollmentsPage() {
                             <button
                               type="button"
                               className={`btn btnPrimary ${styles.btnSm}`}
-                              onClick={() => setWizard({ enrollment, step: 'contact' })}
+                              onClick={() => setWizard({ enrollment, step: 'family' })}
                             >
                               Completar formulario
                             </button>
