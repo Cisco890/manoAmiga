@@ -44,6 +44,7 @@ export type Grade = {
   name: string;
   level: GradeLevel;
   displayOrder: number;
+  studentCount: number | null;
   minAge: number | null;
   maxAge: number | null;
   active: boolean;
@@ -89,7 +90,14 @@ export type Enrollment = {
   rejectionReason: string | null;
   /** La ficha PDF y el carné solo pueden generarse para inscripciones aprobadas. */
   canGenerateDocuments: boolean;
-  student: { id: string; studentCode: string; fullName: string };
+  student: {
+    id: string;
+    studentCode: string;
+    givenNames: string;
+    firstSurname: string;
+    secondSurname: string | null;
+    fullName: string;
+  };
   academicCycle: { id: string; name: string; year: number; status: string };
   grade: { id: string; code: string; name: string; level: string };
   allowedNextStatuses: EnrollmentStatus[];
@@ -101,6 +109,49 @@ export type Pagination = {
   total: number;
   pages: number;
 };
+
+export type AuthorizedPickup = {
+  givenNames: string; firstSurname: string; secondSurname: string | null;
+  relationship: string; phone: string | null;
+};
+export type DocumentSummary = {
+  type: 'ENROLLMENT_FORM' | 'STUDENT_ID_CARD' | 'SPONSOR_AUTHORIZATION';
+  status: 'MISSING' | 'GENERATED' | 'SIGNED' | 'PRINTED' | 'VOID';
+  id: string | null; generatedAt: string | null;
+};
+export type StudentSummary = {
+  student: Student;
+  photo: { id: string; capturedAt: string } | null;
+  currentEnrollment: {
+    id: string; status: EnrollmentStatus; grade: { id: string; name: string; code: string };
+    academicCycle: { id: string; name: string; year: number; status: AcademicCycleStatus };
+  } | null;
+  responsible: {
+    id: string | null; fullName: string; relationship: string; customRelationship: string | null;
+    phone: string | null; primaryContact: boolean; legalRepresentative: boolean;
+  } | null;
+  guardians: Array<NonNullable<StudentSummary['responsible']>>;
+  sponsors: Array<{ id: string; sponsorshipId: string; fullName: string; startDate: string }>;
+  authorizedPickups: AuthorizedPickup[];
+  maxAuthorizedPickups: number;
+  documents: DocumentSummary[];
+  history: Array<{
+    id: string; status: EnrollmentStatus; grade: { id: string; name: string; code: string };
+    academicCycle: { id: string; name: string; year: number; status: AcademicCycleStatus };
+    requestDate: string; approvedAt: string | null; isCurrent: boolean;
+    authorizedPickups: AuthorizedPickup[]; documents: DocumentSummary[];
+  }>;
+};
+
+export async function getStudentSummary(request: AuthenticatedRequest, studentId: string, signal?: AbortSignal) {
+  return parseResponse<{ data: StudentSummary }>(await request(`/students/${studentId}/summary`, { signal }));
+}
+
+export async function saveStudentPickups(request: AuthenticatedRequest, studentId: string, authorizedPickups: AuthorizedPickup[]) {
+  return parseResponse<{ data: AuthorizedPickup[] }>(await request(`/students/${studentId}/authorized-pickups`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ authorizedPickups }),
+  }));
+}
 
 export async function listCycles(request: AuthenticatedRequest, status?: AcademicCycleStatus) {
   const query = status ? `?status=${status}` : '';
@@ -158,6 +209,7 @@ export async function createGrade(
     name: string;
     level: GradeLevel;
     displayOrder: number;
+    studentCount?: number | null;
     minAge?: number | null;
     maxAge?: number | null;
     active?: boolean;
@@ -180,6 +232,7 @@ export async function updateGrade(
     name: string;
     level: GradeLevel;
     displayOrder: number;
+    studentCount: number | null;
     minAge: number | null;
     maxAge: number | null;
     active: boolean;
@@ -196,7 +249,8 @@ export async function updateGrade(
 
 export async function listStudents(
   request: AuthenticatedRequest,
-  filters: { page: number; limit: number; q?: string; status?: StudentStatus | '' },
+  filters: { page: number; limit: number; q?: string; status?: StudentStatus | ''; gradeId?: string; academicCycleId?: string },
+  signal?: AbortSignal,
 ) {
   const parameters = new URLSearchParams({
     page: String(filters.page),
@@ -204,8 +258,10 @@ export async function listStudents(
   });
   if (filters.q) parameters.set('q', filters.q);
   if (filters.status) parameters.set('status', filters.status);
+  if (filters.gradeId) parameters.set('gradeId', filters.gradeId);
+  if (filters.academicCycleId) parameters.set('academicCycleId', filters.academicCycleId);
   return parseResponse<{ data: Student[]; pagination: Pagination }>(
-    await request(`/students?${parameters.toString()}`),
+    await request(`/students?${parameters.toString()}`, { signal }),
   );
 }
 

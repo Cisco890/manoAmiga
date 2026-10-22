@@ -8,14 +8,23 @@ import { EnrollmentFormWizard } from './EnrollmentFormWizard.tsx';
 const enrollment = {
   id: 'insc-1',
   status: 'DRAFT',
-  student: { id: 'a-1', studentCode: 'MA-2026-00001', fullName: 'Ana Pérez' },
+  student: {
+    id: 'a-1',
+    studentCode: 'MA-2026-00001',
+    givenNames: 'Ana',
+    firstSurname: 'Pérez',
+    secondSurname: null,
+    fullName: 'Ana Pérez',
+  },
   academicCycle: { id: 'c-1', name: 'Ciclo 2026', year: 2026, status: 'ACTIVE' },
   grade: { id: 'g-1', code: 'KINDER', name: 'Kínder', level: 'PRE_PRIMARY' },
 } as Enrollment;
 
 const emptyForm: EnrollmentFormData = {
   contact: {
-    messageContactName: null,
+    messageContactGivenNames: null,
+    messageContactFirstSurname: null,
+    messageContactSecondSurname: null,
     messageContactPhone: null,
     messageContactRelationship: null,
     mayLeaveAlone: false,
@@ -23,14 +32,20 @@ const emptyForm: EnrollmentFormData = {
   },
   household: null,
   medical: null,
-  signature: { signerName: null, signerRelationship: null },
+  signature: {
+    signerGivenNames: null,
+    signerFirstSurname: null,
+    signerSecondSurname: null,
+    signerRelationship: null,
+  },
 };
 
 const missingAll: MissingField[] = [
-  { step: 'contact', field: 'messageContactName', label: 'Nombre del contacto para mensajes' },
+  { step: 'contact', field: 'messageContactGivenNames', label: 'Nombres del contacto para mensajes' },
+  { step: 'contact', field: 'messageContactFirstSurname', label: 'Primer apellido del contacto para mensajes' },
   { step: 'contact', field: 'authorizedPickups', label: 'Al menos una persona autorizada para recoger al alumno' },
   { step: 'household', field: 'householdSize', label: 'Número de personas en el hogar' },
-  { step: 'signature', field: 'signerName', label: 'Nombre de quien firma la inscripción' },
+  { step: 'signature', field: 'signerGivenNames', label: 'Nombres de quien firma la inscripción' },
 ];
 
 function formResponse(overrides: Partial<EnrollmentForm> = {}): { data: EnrollmentForm } {
@@ -77,7 +92,7 @@ describe('formulario de inscripción por pasos', () => {
     renderWizard(() => json(200, formResponse()));
     const steps = within(await screen.findByRole('navigation', { name: 'Pasos del formulario' }));
 
-    expect(steps.getByRole('button', { name: /Contacto y salida.*2 pendientes/ })).toBeTruthy();
+    expect(steps.getByRole('button', { name: /Contacto y salida.*3 pendientes/ })).toBeTruthy();
     expect(steps.getByRole('button', { name: /Hogar.*1 pendientes/ })).toBeTruthy();
     expect(steps.getByRole('button', { name: /Salud/ }).textContent).not.toMatch(/\d+$/);
   });
@@ -85,7 +100,7 @@ describe('formulario de inscripción por pasos', () => {
   it('el paso de revisión lista los faltantes por paso y no permite enviar', async () => {
     const { request } = renderWizard(() => json(200, formResponse()), 'review');
 
-    expect(await screen.findByText('Faltan 4 campos obligatorios')).toBeTruthy();
+    expect(await screen.findByText('Faltan 5 campos obligatorios')).toBeTruthy();
     expect(screen.getByText('Al menos una persona autorizada para recoger al alumno')).toBeTruthy();
     expect((screen.getByRole('button', { name: 'Enviar a revisión' }) as HTMLButtonElement).disabled).toBe(true);
 
@@ -103,13 +118,17 @@ describe('formulario de inscripción por pasos', () => {
     });
     const user = userEvent.setup();
 
-    await user.type(await screen.findByLabelText('Nombre'), 'María López');
+    await user.type(await screen.findByLabelText('Nombres'), 'María');
+    await user.type(screen.getByLabelText('Primer apellido'), 'López');
     await user.click(screen.getByRole('button', { name: 'Guardar borrador' }));
 
     await waitFor(() => expect(patches(request, '/form')).toHaveLength(1));
     const body = JSON.parse(String(patches(request, '/form')[0][1]?.body)) as Record<string, unknown>;
     expect(Object.keys(body)).toEqual(['contact']);
-    expect(body.contact).toMatchObject({ messageContactName: 'María López' });
+    expect(body.contact).toMatchObject({
+      messageContactGivenNames: 'María',
+      messageContactFirstSurname: 'López',
+    });
     expect(await screen.findByText('Borrador guardado.')).toBeTruthy();
     expect(screen.getByRole('button', { name: /^1\s*Contacto y salida$/ })).toBeTruthy();
   });
@@ -141,7 +160,7 @@ describe('formulario de inscripción por pasos', () => {
       if (path.endsWith('/status') && init.method === 'PATCH') {
         return json(422, {
           message: 'No se puede enviar a revisión: faltan 1 campo obligatorio.',
-          missingFields: [missingAll[3]],
+          missingFields: [missingAll[4]],
         });
       }
       return json(200, formResponse({ missingFields: [] }));
@@ -150,7 +169,7 @@ describe('formulario de inscripción por pasos', () => {
     await userEvent.setup().click(await screen.findByRole('button', { name: 'Enviar a revisión' }));
 
     expect((await screen.findByRole('alert')).textContent).toMatch(/faltan 1 campo/);
-    expect(screen.getByText('Nombre de quien firma la inscripción')).toBeTruthy();
+    expect(screen.getByText('Nombres de quien firma la inscripción')).toBeTruthy();
   });
 
   it('muestra el motivo de devolución y bloquea la edición fuera de Borrador o Incompleta', async () => {
@@ -162,7 +181,7 @@ describe('formulario de inscripción por pasos', () => {
     );
 
     expect(await screen.findByText(/Falta la firma del encargado/)).toBeTruthy();
-    expect(screen.getByLabelText('Nombre').matches(':disabled')).toBe(true);
+    expect(screen.getByLabelText('Nombres').matches(':disabled')).toBe(true);
     expect(screen.queryByRole('button', { name: 'Guardar borrador' })).toBeNull();
   });
 });

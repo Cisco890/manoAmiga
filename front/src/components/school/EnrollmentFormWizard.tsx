@@ -230,9 +230,19 @@ export function EnrollmentFormWizard({
               {step === 'signature' ? (
                 <div className={modalStyles.grid}>
                   <TextField
-                    label="Nombre de quien firma"
-                    value={form.signature.signerName}
-                    onChange={(signerName) => updateSection('signature', { signerName })}
+                    label="Nombres de quien firma"
+                    value={form.signature.signerGivenNames}
+                    onChange={(signerGivenNames) => updateSection('signature', { signerGivenNames })}
+                  />
+                  <TextField
+                    label="Primer apellido"
+                    value={form.signature.signerFirstSurname}
+                    onChange={(signerFirstSurname) => updateSection('signature', { signerFirstSurname })}
+                  />
+                  <TextField
+                    label="Segundo apellido"
+                    value={form.signature.signerSecondSurname}
+                    onChange={(signerSecondSurname) => updateSection('signature', { signerSecondSurname })}
                   />
                   <TextField
                     label="Parentesco con el alumno"
@@ -346,9 +356,19 @@ function ContactStep({
       <Section title="Contacto para mensajes">
         <div className={modalStyles.grid}>
           <TextField
-            label="Nombre"
-            value={contact.messageContactName}
-            onChange={(messageContactName) => update({ messageContactName })}
+            label="Nombres"
+            value={contact.messageContactGivenNames}
+            onChange={(messageContactGivenNames) => update({ messageContactGivenNames })}
+          />
+          <TextField
+            label="Primer apellido"
+            value={contact.messageContactFirstSurname}
+            onChange={(messageContactFirstSurname) => update({ messageContactFirstSurname })}
+          />
+          <TextField
+            label="Segundo apellido"
+            value={contact.messageContactSecondSurname}
+            onChange={(messageContactSecondSurname) => update({ messageContactSecondSurname })}
           />
           <TextField
             label="Teléfono"
@@ -371,14 +391,24 @@ function ContactStep({
         />
         <p className={styles.hint}>
           Personas autorizadas para recoger al alumno (máximo {maxPickups}). Debe haber al menos una si el alumno no
-          puede retirarse solo.
+          puede retirarse solo. Los apellidos van en campos separados para ordenarlos.
         </p>
         {pickups.map((pickup, position) => (
           <div key={position} className={styles.pickup}>
             <TextField
-              label={`Nombre (persona ${position + 1})`}
-              value={pickup.fullName}
-              onChange={(fullName) => setPickup(position, { fullName: fullName ?? '' })}
+              label={`Nombres (persona ${position + 1})`}
+              value={pickup.givenNames}
+              onChange={(givenNames) => setPickup(position, { givenNames: givenNames ?? '' })}
+            />
+            <TextField
+              label="Primer apellido"
+              value={pickup.firstSurname}
+              onChange={(firstSurname) => setPickup(position, { firstSurname: firstSurname ?? '' })}
+            />
+            <TextField
+              label="Segundo apellido"
+              value={pickup.secondSurname}
+              onChange={(secondSurname) => setPickup(position, { secondSurname })}
             />
             <TextField
               label="Parentesco"
@@ -405,7 +435,14 @@ function ContactStep({
           <button
             type="button"
             className="btn"
-            onClick={() => update({ authorizedPickups: [...pickups, { fullName: '', relationship: '', phone: null }] })}
+            onClick={() =>
+              update({
+                authorizedPickups: [
+                  ...pickups,
+                  { givenNames: '', firstSurname: '', secondSurname: null, relationship: '', phone: null },
+                ],
+              })
+            }
           >
             <Plus size={16} aria-hidden="true" />
             Agregar persona autorizada

@@ -16,6 +16,7 @@ import {
 } from '../api/school.ts';
 import { ApiError } from '../auth/api.ts';
 import { useAuth } from '../auth/useAuth.ts';
+import { formatDate } from '../lib/dates.ts';
 import { PageHeader } from '../components/ui/PageHeader.tsx';
 import { getRouteByPath } from '../config/navigation.ts';
 import {
@@ -235,7 +236,9 @@ export function EnrollmentsPage() {
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th>Alumno</th>
+                  <th>Primer apellido</th>
+                  <th>Segundo apellido</th>
+                  <th>Nombres</th>
                   <th>Ciclo</th>
                   <th>Grado</th>
                   <th>Tipo</th>
@@ -248,11 +251,13 @@ export function EnrollmentsPage() {
                 {enrollments.map((enrollment) => (
                   <tr key={enrollment.id}>
                     <td>
-                      <div>{enrollment.student.fullName}</div>
+                      <div>{enrollment.student.firstSurname}</div>
                       <small style={{ color: 'var(--color-text-muted)' }}>
                         {enrollment.student.studentCode}
                       </small>
                     </td>
+                    <td>{enrollment.student.secondSurname ?? '—'}</td>
+                    <td>{enrollment.student.givenNames}</td>
                     <td>{enrollment.academicCycle.name}</td>
                     <td>{enrollment.grade.name}</td>
                     <td>{applicationTypeLabels[enrollment.applicationType]}</td>
@@ -268,7 +273,7 @@ export function EnrollmentsPage() {
                         <small className={styles.reviewNote}>Ficha y carné habilitados</small>
                       ) : null}
                     </td>
-                    <td>{enrollment.requestDate}</td>
+                    <td>{formatDate(enrollment.requestDate)}</td>
                     {showActions ? (
                       <td>
                         <div className={styles.rowActions}>

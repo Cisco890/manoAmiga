@@ -31,7 +31,14 @@ function enrollment(id: string, status: EnrollmentStatus, overrides: Partial<Enr
     approvedByUserId: null,
     rejectionReason: null,
     canGenerateDocuments: status === 'APPROVED',
-    student: { id: `alumno-${id}`, studentCode: `MA-2026-${id}`, fullName: `Alumno ${id}` },
+    student: {
+      id: `alumno-${id}`,
+      studentCode: `MA-2026-${id}`,
+      givenNames: 'Alumno',
+      firstSurname: `${id}`,
+      secondSurname: null,
+      fullName: `Alumno ${id}`,
+    },
     academicCycle: { id: 'ciclo-1', name: 'Ciclo 2026', year: 2026, status: 'ACTIVE' },
     grade: { id: 'grado-1', code: 'KINDER', name: 'Kínder', level: 'PRE_PRIMARY' },
     allowedNextStatuses: nextStatuses[status],
@@ -82,13 +89,13 @@ function renderPage(permissions: PermissionCode[], enrollments: Enrollment[]) {
 const statusRequests = (request: ReturnType<typeof renderPage>) =>
   request.mock.calls.filter(([path]) => String(path).endsWith('/status'));
 
-const rowOf = async (studentName: string) =>
-  (await screen.findByText(studentName)).closest('tr') as HTMLTableRowElement;
+const rowOf = async (studentId: string) =>
+  (await screen.findByText(`MA-2026-${studentId}`)).closest('tr') as HTMLTableRowElement;
 
 describe('revisión de inscripciones (dirección)', () => {
   it('muestra Aprobar, Devolver y Rechazar a quien tiene enrollment.approve', async () => {
     renderPage(['enrollment.read', 'enrollment.write', 'enrollment.approve'], [enrollment('1', 'PENDING_REVIEW')]);
-    const row = within(await rowOf('Alumno 1'));
+    const row = within(await rowOf('1'));
 
     expect(row.getByRole('button', { name: 'Aprobar' })).toBeTruthy();
     expect(row.getByRole('button', { name: 'Devolver para corrección' })).toBeTruthy();
@@ -100,7 +107,7 @@ describe('revisión de inscripciones (dirección)', () => {
     const request = renderPage(['enrollment.read', 'enrollment.approve'], [enrollment('1', 'PENDING_REVIEW')]);
     const user = userEvent.setup();
 
-    await user.click(within(await rowOf('Alumno 1')).getByRole('button', { name: 'Aprobar' }));
+    await user.click(within(await rowOf('1')).getByRole('button', { name: 'Aprobar' }));
 
     await waitFor(() => expect(statusRequests(request)).toHaveLength(1));
     expect(JSON.parse(String(statusRequests(request)[0][1]?.body))).toEqual({ status: 'APPROVED' });
@@ -110,7 +117,7 @@ describe('revisión de inscripciones (dirección)', () => {
     const request = renderPage(['enrollment.read', 'enrollment.approve'], [enrollment('1', 'PENDING_REVIEW')]);
     const user = userEvent.setup();
 
-    await user.click(within(await rowOf('Alumno 1')).getByRole('button', { name: 'Devolver para corrección' }));
+    await user.click(within(await rowOf('1')).getByRole('button', { name: 'Devolver para corrección' }));
     const dialog = within(await screen.findByRole('dialog'));
     await user.click(dialog.getByRole('button', { name: 'Devolver inscripción' }));
 
@@ -138,12 +145,12 @@ describe('revisión de inscripciones (dirección)', () => {
     );
 
     expect(await screen.findByText('Motivo: Falta la firma del encargado')).toBeTruthy();
-    expect(within(await rowOf('Alumno 2')).getByText('Ficha y carné habilitados')).toBeTruthy();
+    expect(within(await rowOf('2')).getByText('Ficha y carné habilitados')).toBeTruthy();
   });
 
   it('la secretaría sin enrollment.approve no ve las acciones de revisión', async () => {
     renderPage(['enrollment.read', 'enrollment.write'], [enrollment('1', 'PENDING_REVIEW')]);
-    const row = within(await rowOf('Alumno 1'));
+    const row = within(await rowOf('1'));
 
     expect(row.getByRole('button', { name: 'Cancelar' })).toBeTruthy();
     for (const name of ['Aprobar', 'Devolver para corrección', 'Rechazar']) {
@@ -155,7 +162,7 @@ describe('revisión de inscripciones (dirección)', () => {
   it('un colaborador de solo lectura no ve la columna de acciones', async () => {
     renderPage(['enrollment.read'], [enrollment('1', 'PENDING_REVIEW')]);
 
-    await rowOf('Alumno 1');
+    await rowOf('1');
     expect(screen.queryByRole('columnheader', { name: 'Acciones' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Aprobar' })).toBeNull();
   });

@@ -5,6 +5,7 @@ import { MetricCard } from '../components/ui/MetricCard.tsx';
 import { PageHeader } from '../components/ui/PageHeader.tsx';
 import { PlaceholderPanel } from '../components/ui/PlaceholderPanel.tsx';
 import { EmptyTable } from '../components/ui/EmptyTable.tsx';
+import { StudentSearch } from '../components/school/StudentSearch.tsx';
 import styles from './pageLayout.module.css';
 
 export function DashboardPage() {
@@ -20,14 +21,6 @@ export function DashboardPage() {
       <PageHeader
         title={dashboardRoute.label}
         description={dashboardRoute.description}
-        extra={
-          <label className="label">
-            Ciclo escolar
-            <select className="select" disabled defaultValue="">
-              <option value="">Seleccionar ciclo</option>
-            </select>
-          </label>
-        }
       />
 
       <section className={styles.metrics} aria-label="Indicadores">
@@ -36,6 +29,8 @@ export function DashboardPage() {
         <MetricCard title="Alumnos sin padrino" icon={UserPlus} />
         <MetricCard title="Inscripciones pendientes" icon={ClipboardList} />
       </section>
+
+      <StudentSearch />
 
       <section className={styles.charts} aria-label="Gráficas">
         <PlaceholderPanel title="Cobertura de padrinazgo">

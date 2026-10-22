@@ -16,9 +16,11 @@ import { ApiError } from '../auth/api.ts';
 import { useAuth } from '../auth/useAuth.ts';
 import { EmptyState } from '../components/feedback/EmptyState.tsx';
 import { PageHeader } from '../components/ui/PageHeader.tsx';
+import { DateInput } from '../components/ui/DateInput.tsx';
 import { PlaceholderPanel } from '../components/ui/PlaceholderPanel.tsx';
 import { getRouteByPath } from '../config/navigation.ts';
 import { cycleStatusLabels, gradeLevelLabels } from '../lib/labels.ts';
+import { formatDate, parseDate } from '../lib/dates.ts';
 import modalStyles from '../components/school/FormModal.module.css';
 import styles from './schoolShared.module.css';
 import pageStyles from './pageLayout.module.css';
@@ -116,8 +118,8 @@ export function SettingsPage() {
                     <tr key={cycle.id}>
                       <td>{cycle.name}</td>
                       <td>{cycle.year}</td>
-                      <td>{cycle.startDate}</td>
-                      <td>{cycle.endDate}</td>
+                      <td>{formatDate(cycle.startDate)}</td>
+                      <td>{formatDate(cycle.endDate)}</td>
                       <td>
                         <span className={badgeClass(cycle.status)}>
                           {cycleStatusLabels[cycle.status]}
@@ -199,6 +201,7 @@ export function SettingsPage() {
                     <th>Nombre</th>
                     <th>Nivel</th>
                     <th>Orden</th>
+                    <th>Cantidad de estudiantes</th>
                     <th>Estado</th>
                     {canManage ? <th>Acciones</th> : null}
                   </tr>
@@ -210,6 +213,7 @@ export function SettingsPage() {
                       <td>{grade.name}</td>
                       <td>{gradeLevelLabels[grade.level]}</td>
                       <td>{grade.displayOrder}</td>
+                      <td>{grade.studentCount ?? 'Sin definir'}</td>
                       <td>
                         <span className={grade.active ? `${styles.badge} ${styles.badgeActive}` : `${styles.badge} ${styles.badgeMuted}`}>
                           {grade.active ? 'Activo' : 'Inactivo'}
@@ -301,6 +305,7 @@ export function SettingsPage() {
                 name: input.name!,
                 level: input.level!,
                 displayOrder: input.displayOrder!,
+                studentCount: input.studentCount,
                 minAge: input.minAge,
                 maxAge: input.maxAge,
                 active: input.active,
@@ -333,8 +338,8 @@ function CycleFormModal({
   const year = new Date().getFullYear();
   const [name, setName] = useState(cycle?.name ?? `Ciclo ${year}`);
   const [cycleYear, setCycleYear] = useState(String(cycle?.year ?? year));
-  const [startDate, setStartDate] = useState(cycle?.startDate ?? `${year}-01-01`);
-  const [endDate, setEndDate] = useState(cycle?.endDate ?? `${year}-10-31`);
+  const [startDate, setStartDate] = useState(formatDate(cycle?.startDate ?? `${year}-01-01`));
+  const [endDate, setEndDate] = useState(formatDate(cycle?.endDate ?? `${year}-10-31`));
   const [status, setStatus] = useState<AcademicCycleStatus>(cycle?.status ?? 'PLANNED');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -347,8 +352,8 @@ function CycleFormModal({
       await onSave({
         name,
         year: Number(cycleYear),
-        startDate,
-        endDate,
+        startDate: parseDate(startDate)!,
+        endDate: parseDate(endDate)!,
         status,
       });
     } catch (saveError) {
@@ -399,11 +404,11 @@ function CycleFormModal({
             </label>
             <label className="label">
               Fecha de inicio
-              <input className="field" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
+              <DateInput className="field" value={startDate} onChange={setStartDate} required />
             </label>
             <label className="label">
               Fecha de fin
-              <input className="field" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} required />
+              <DateInput className="field" value={endDate} onChange={setEndDate} required />
             </label>
           </div>
           <div className={modalStyles.actions}>
@@ -432,6 +437,7 @@ function GradeFormModal({
     name: string;
     level: GradeLevel;
     displayOrder: number;
+    studentCount: number | null;
     minAge: number | null;
     maxAge: number | null;
     active: boolean;
@@ -441,6 +447,7 @@ function GradeFormModal({
   const [name, setName] = useState(grade?.name ?? '');
   const [level, setLevel] = useState<GradeLevel>(grade?.level ?? 'PRE_PRIMARY');
   const [displayOrder, setDisplayOrder] = useState(String(grade?.displayOrder ?? 1));
+  const [studentCount, setStudentCount] = useState(grade?.studentCount != null ? String(grade.studentCount) : '');
   const [minAge, setMinAge] = useState(grade?.minAge != null ? String(grade.minAge) : '');
   const [maxAge, setMaxAge] = useState(grade?.maxAge != null ? String(grade.maxAge) : '');
   const [active, setActive] = useState(grade?.active ?? true);
@@ -457,6 +464,7 @@ function GradeFormModal({
         name,
         level,
         displayOrder: Number(displayOrder),
+        studentCount: studentCount === '' ? null : Number(studentCount),
         minAge: minAge === '' ? null : Number(minAge),
         maxAge: maxAge === '' ? null : Number(maxAge),
         active,
@@ -521,6 +529,19 @@ function GradeFormModal({
                 <option value="true">Sí</option>
                 <option value="false">No</option>
               </select>
+            </label>
+            <label className="label">
+              Cantidad de estudiantes
+              <input
+                className="field"
+                type="number"
+                min={0}
+                max={2147483647}
+                step={1}
+                value={studentCount}
+                onChange={(e) => setStudentCount(e.target.value)}
+                placeholder="Sin definir"
+              />
             </label>
             <label className="label">
               Edad mínima

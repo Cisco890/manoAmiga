@@ -6,11 +6,22 @@ type AuthenticatedRequest = (path: string, init?: RequestInit) => Promise<Respon
 export type FormStepId = 'contact' | 'household' | 'medical' | 'signature';
 export type MissingField = { step: FormStepId; field: string; label: string };
 
-export type AuthorizedPickupInput = { fullName: string; relationship: string; phone: string | null };
+export type PersonNameInput = {
+  givenNames: string;
+  firstSurname: string;
+  secondSurname: string | null;
+};
+
+export type AuthorizedPickupInput = PersonNameInput & {
+  relationship: string;
+  phone: string | null;
+};
 
 export type EnrollmentFormData = {
   contact: {
-    messageContactName: string | null;
+    messageContactGivenNames: string | null;
+    messageContactFirstSurname: string | null;
+    messageContactSecondSurname: string | null;
     messageContactPhone: string | null;
     messageContactRelationship: string | null;
     mayLeaveAlone: boolean;
@@ -37,7 +48,12 @@ export type EnrollmentFormData = {
     vaccinationsComplete: boolean | null;
     missingVaccines: string | null;
   } | null;
-  signature: { signerName: string | null; signerRelationship: string | null };
+  signature: {
+    signerGivenNames: string | null;
+    signerFirstSurname: string | null;
+    signerSecondSurname: string | null;
+    signerRelationship: string | null;
+  };
 };
 
 export type EnrollmentForm = {

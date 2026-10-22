@@ -243,6 +243,73 @@ Abra `http://localhost:5173` en el navegador e inicie sesión con una cuenta cre
 - No ve Usuarios ni Configuración.
 - Tampoco puede ingresar a rutas administrativas escribiendo directamente la URL.
 
+## Grados y fechas
+
+En **Configuración → Grados**, el formulario de creación y edición permite indicar la
+**Cantidad de estudiantes** (entero no negativo, opcional). El listado muestra el valor
+guardado o «Sin definir». Este dato se registra manualmente y no limita las inscripciones.
+La migración `20261022000000_grade_student_count` agrega el campo sin asignar cantidades
+a los grados existentes; aplíquela con `npm run db:deploy` desde `database/` y regenere
+el cliente con `npm run db:generate`.
+
+Las fechas de la interfaz se muestran e ingresan como **dd/mm/aaaa**. La API conserva
+el formato ISO `YYYY-MM-DD` para guardar e intercambiar fechas.
+
+## Búsqueda y ficha resumida de alumnos
+
+El **Dashboard** y la vista **Alumnos** comparten el directorio de búsqueda. También
+puede buscar desde la barra superior. El botón **Ver ficha** abre el expediente sin
+cambiar de pantalla.
+
+- La búsqueda admite nombres parciales y palabras en cualquier orden, código,
+  **CUI completo**, nombre/código de grado, nombre/año de ciclo y nombre de
+  padre, madre, tutor o padrino. El CUI se compara por hash y se muestra enmascarado.
+- Los filtros **Grado** y **Ciclo escolar** se combinan sobre una misma inscripción,
+  incluidas las anteriores. Los resultados se paginan de diez en diez.
+- La ficha muestra fotografía, grado, estado, responsable, padrinos activos,
+  estado de documentos e historial por ciclo. La inscripción actual es la abierta
+  más reciente de un ciclo no cerrado. Si no hay datos, se indica explícitamente.
+- El responsable es el contacto principal vigente; en su defecto, el representante
+  legal u otro guardián vigente. Si solo existe un contacto en la inscripción,
+  se muestra identificado como tal. Registrar un responsable no lo agrega a la
+  lista de personas autorizadas para recoger al alumno.
+- Los documentos distinguen pendiente de generar, generado, firmado, impreso y
+  anulado. Cada inscripción conserva su grado, ciclo, estado, documentos y lista
+  de autorizados; los cambios actuales no reemplazan los registros históricos.
+- Las fotografías existentes se descargan mediante la API autenticada desde el
+  almacenamiento privado configurado. Las claves y rutas privadas no llegan al
+  navegador. Un problema con la imagen no impide consultar el resto de la ficha.
+
+**Personas autorizadas:** quien tiene `student.write` puede registrar, editar o
+retirar hasta tres personas desde la ficha, siguiendo el límite del formulario de
+inscripción. Se mantienen los campos separados de nombres y apellidos, parentesco
+y teléfono. No es necesario crear un guardián ni una inscripción. Guardar una lista
+vacía revoca todas las autorizaciones actuales. Los cambios se auditan sin copiar
+los datos personales a la auditoría.
+
+Una nueva inscripción copia los autorizados actuales. El formulario de inscripción
+y la ficha sincronizan la lista de la inscripción más reciente mientras está en
+Borrador o Incompleta. Las inscripciones en revisión, aprobadas y pasadas conservan
+su lista registrada.
+
+| Endpoint | Permiso | Resultado |
+| --- | --- | --- |
+| `GET /api/students?q=&gradeId=&academicCycleId=&status=&page=&limit=` | `student.read` | Búsqueda paginada, aislada por colegio. |
+| `GET /api/students/:id/summary` | `student.read` | Ficha resumida con autorizados e historial. |
+| `PUT /api/students/:id/authorized-pickups` | `student.write` | Reemplazo de la lista actual, con `{ "authorizedPickups": [...] }`. |
+| `GET /api/students/:id/photo` | `student.read` | Imagen privada, sin caché. |
+
+La migración `20261022120000_student_directory` conserva los autorizados de cada
+inscripción y crea la lista vigente a partir de la inscripción abierta más reciente,
+sin reactivar permisos de ciclos cerrados. Agrega índices para búsquedas parciales y
+filtros. Aplíquela desde `database/` con `npm run db:deploy` y `npm run db:generate`.
+
+`database/test/student-directory.test.ts` verifica los seis criterios, permisos,
+aislamiento por colegio, fotografías, sincronización e historial. Incluye una prueba
+con 2,000 alumnos e inscripciones adicionales que exige menos de 2 segundos por
+búsqueda común. La medición valida el entorno de prueba; en producción también
+depende del volumen real, la infraestructura y la red.
+
 ## Inscripciones
 
 Flujo de estados: Borrador → Pendiente de revisión → Incompleta/Aprobada → Cerrada. Un cambio de grado en el mismo ciclo cierra la inscripción anterior y crea una nueva, para conservar el historial.

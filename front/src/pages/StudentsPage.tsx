@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Plus, Search, X } from 'lucide-react';
+import { useState, type FormEvent } from 'react';
+import { Plus, X } from 'lucide-react';
 import {
   createStudent,
-  listStudents,
   updateStudent,
   type Sex,
   type Student,
@@ -11,53 +10,22 @@ import {
 import { ApiError } from '../auth/api.ts';
 import { useAuth } from '../auth/useAuth.ts';
 import { PageHeader } from '../components/ui/PageHeader.tsx';
+import { DateInput } from '../components/ui/DateInput.tsx';
+import { StudentSearch } from '../components/school/StudentSearch.tsx';
 import { getRouteByPath } from '../config/navigation.ts';
 import { sexLabels, studentStatusLabels } from '../lib/labels.ts';
+import { formatDate, parseDate } from '../lib/dates.ts';
 import modalStyles from '../components/school/FormModal.module.css';
-import styles from './schoolShared.module.css';
 import pageStyles from './pageLayout.module.css';
 
 const route = getRouteByPath('/alumnos');
-const pageSize = 10;
 
 export function StudentsPage() {
   const { can, request } = useAuth();
   const canWrite = can('student.write');
-  const [students, setStudents] = useState<Student[]>([]);
-  const [page, setPage] = useState(1);
-  const [pages, setPages] = useState(1);
-  const [total, setTotal] = useState(0);
-  const [searchDraft, setSearchDraft] = useState('');
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<StudentStatus | ''>('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Student | null>(null);
-
-  const filters = useMemo(
-    () => ({ page, limit: pageSize, q: search, status }),
-    [page, search, status],
-  );
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const result = await listStudents(request, filters);
-      setStudents(result.data);
-      setTotal(result.pagination.total);
-      setPages(result.pagination.pages);
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'No se pudieron cargar los alumnos.');
-    } finally {
-      setLoading(false);
-    }
-  }, [filters, request]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   return (
     <div className={pageStyles.stack}>
@@ -81,131 +49,10 @@ export function StudentsPage() {
         }
       />
 
-      <section className={styles.panel}>
-        <form
-          className={styles.filters}
-          onSubmit={(event) => {
-            event.preventDefault();
-            setPage(1);
-            setSearch(searchDraft.trim());
-          }}
-        >
-          <label className="label">
-            Buscar alumno
-            <span className={styles.filters} style={{ padding: 0, border: 0, background: 'transparent' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                <Search size={16} aria-hidden="true" />
-                <input
-                  className="field fieldWide"
-                  type="search"
-                  value={searchDraft}
-                  onChange={(e) => setSearchDraft(e.target.value)}
-                  placeholder="Nombre o código"
-                />
-              </span>
-            </span>
-          </label>
-          <label className="label">
-            Estado
-            <select
-              className="select"
-              value={status}
-              onChange={(e) => {
-                setPage(1);
-                setStatus(e.target.value as StudentStatus | '');
-              }}
-            >
-              <option value="">Todos</option>
-              {Object.entries(studentStatusLabels).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button type="submit" className="btn">
-            Buscar
-          </button>
-        </form>
-
-        {error ? <p className={styles.error}>{error}</p> : null}
-
-        {loading ? (
-          <p className={styles.empty}>Cargando alumnos…</p>
-        ) : students.length === 0 ? (
-          <p className={styles.empty}>No hay alumnos registrados.</p>
-        ) : (
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>Código</th>
-                  <th>Alumno</th>
-                  <th>CUI</th>
-                  <th>Grado actual</th>
-                  <th>Estado</th>
-                  {canWrite ? <th>Acciones</th> : null}
-                </tr>
-              </thead>
-              <tbody>
-                {students.map((student) => (
-                  <tr key={student.id}>
-                    <td>{student.studentCode}</td>
-                    <td>{student.fullName}</td>
-                    <td>{student.cuiMasked ?? '—'}</td>
-                    <td>
-                      {student.currentGrade
-                        ? `${student.currentGrade.name} (${student.currentGrade.cycleName})`
-                        : '—'}
-                    </td>
-                    <td>
-                      <span className={styles.badge}>{studentStatusLabels[student.status]}</span>
-                    </td>
-                    {canWrite ? (
-                      <td>
-                        <button
-                          type="button"
-                          className={`btn ${styles.btnSm}`}
-                          onClick={() => {
-                            setEditing(student);
-                            setFormOpen(true);
-                          }}
-                        >
-                          Editar
-                        </button>
-                      </td>
-                    ) : null}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        <div className={styles.pagination}>
-          <span>
-            {total} alumno{total === 1 ? '' : 's'} · página {page} de {pages}
-          </span>
-          <div className={styles.rowActions}>
-            <button
-              type="button"
-              className={`btn ${styles.btnSm}`}
-              disabled={page <= 1}
-              onClick={() => setPage((current) => current - 1)}
-            >
-              Anterior
-            </button>
-            <button
-              type="button"
-              className={`btn ${styles.btnSm}`}
-              disabled={page >= pages}
-              onClick={() => setPage((current) => current + 1)}
-            >
-              Siguiente
-            </button>
-          </div>
-        </div>
-      </section>
+      <StudentSearch refreshKey={refreshKey} onEdit={canWrite ? (student) => {
+        setEditing(student);
+        setFormOpen(true);
+      } : undefined} />
 
       {formOpen ? (
         <StudentFormModal
@@ -218,7 +65,7 @@ export function StudentsPage() {
               await createStudent(request, input);
             }
             setFormOpen(false);
-            await load();
+            setRefreshKey((value) => value + 1);
           }}
         />
       ) : null}
@@ -252,7 +99,7 @@ function StudentFormModal({
   const [secondSurname, setSecondSurname] = useState(student?.secondSurname ?? '');
   const [usualName, setUsualName] = useState(student?.usualName ?? '');
   const [birthPlace, setBirthPlace] = useState(student?.birthPlace ?? '');
-  const [birthDate, setBirthDate] = useState(student?.birthDate ?? '');
+  const [birthDate, setBirthDate] = useState(formatDate(student?.birthDate));
   const [cui, setCui] = useState('');
   const [clearCui, setClearCui] = useState(false);
   const [homePhone, setHomePhone] = useState(student?.homePhone ?? '');
@@ -273,7 +120,7 @@ function StudentFormModal({
         secondSurname: secondSurname || null,
         usualName: usualName || null,
         birthPlace: birthPlace || null,
-        birthDate: birthDate || null,
+        birthDate: parseDate(birthDate),
         homePhone: homePhone || null,
         sex,
         notes: notes || null,
@@ -326,7 +173,7 @@ function StudentFormModal({
             </label>
             <label className="label">
               Fecha de nacimiento
-              <input className="field" type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} />
+              <DateInput className="field" value={birthDate} onChange={setBirthDate} />
             </label>
             <label className="label">
               Lugar de nacimiento
