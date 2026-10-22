@@ -3,7 +3,9 @@ import type {
   EnrollmentStatus,
 } from "../generated/prisma/client";
 import { prisma } from "../prisma";
+import { buildFullName } from "./personName";
 import { assertEnrollmentFormComplete } from "./enrollmentForm";
+import { pickupSelect } from "./authorizedPickups";
 
 export const applicationTypes = ["NEW_ENROLLMENT", "RE_ENROLLMENT", "TRANSFER"] as const;
 export const enrollmentStatuses = [
@@ -62,10 +64,6 @@ export function isReviewStatus(status: EnrollmentStatus) {
   return reviewStatuses.includes(status);
 }
 
-function buildSearchName(givenNames: string, firstSurname: string, secondSurname?: string | null) {
-  return [givenNames, firstSurname, secondSurname].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
-}
-
 function publicEnrollment(enrollment: {
   id: string;
   studentId: string;
@@ -109,7 +107,10 @@ function publicEnrollment(enrollment: {
     student: {
       id: enrollment.student.id,
       studentCode: enrollment.student.studentCode,
-      fullName: buildSearchName(
+      givenNames: enrollment.student.givenNames,
+      firstSurname: enrollment.student.firstSurname,
+      secondSurname: enrollment.student.secondSurname,
+      fullName: buildFullName(
         enrollment.student.givenNames,
         enrollment.student.firstSurname,
         enrollment.student.secondSurname,
@@ -170,7 +171,12 @@ export async function listEnrollments(
     prisma.enrollment.findMany({
       where,
       include: enrollmentInclude,
-      orderBy: [{ requestDate: "desc" }, { createdAt: "desc" }],
+      orderBy: [
+        { student: { firstSurname: "asc" } },
+        { student: { secondSurname: "asc" } },
+        { student: { givenNames: "asc" } },
+        { requestDate: "desc" },
+      ],
       skip: (options.page - 1) * options.limit,
       take: options.limit,
     }),
@@ -268,12 +274,16 @@ function createEnrollmentInTransaction(
       });
     }
 
+    const pickups = await tx.authorizedPickup.findMany({
+      where: { studentId: input.studentId, active: true }, orderBy: { sortOrder: "asc" }, select: pickupSelect,
+    });
     const enrollment = await tx.enrollment.create({
       data: {
         studentId: input.studentId,
         academicCycleId: input.academicCycleId,
         gradeId: input.gradeId,
         applicationType: input.applicationType,
+        authorizedPickups: { create: pickups.map((pickup, i) => ({ ...pickup, sortOrder: i + 1 })) },
         status: "DRAFT",
         notes: input.notes?.trim() || null,
       },

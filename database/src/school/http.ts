@@ -36,6 +36,9 @@ import {
   studentStatuses,
   updateStudent,
 } from "./students";
+import { parseAuthorizedPickups, saveStudentPickups } from "./authorizedPickups";
+import { getStudentPhoto, getStudentSummary } from "./studentSummary";
+import { downloadPrivateObject } from "../storage/supabase-storage";
 
 export class DomainError extends Error {
   constructor(
@@ -72,6 +75,7 @@ async function wrapDomain<T>(operation: () => Promise<T>): Promise<T> {
 }
 
 type RouteHelpers = {
+  responseHeaders: (request: IncomingMessage) => Record<string, string>;
   sendJson: (
     request: IncomingMessage,
     response: ServerResponse,
@@ -113,6 +117,15 @@ function optionalInt(value: unknown, field: string) {
   return requireInt(value, field);
 }
 
+function optionalStudentCount(value: unknown) {
+  if (value === undefined || value === null) return null;
+  const count = requireInt(value, "La cantidad de estudiantes");
+  if (count < 0 || count > 2147483647) {
+    throw new DomainError(400, "La cantidad de estudiantes debe estar entre 0 y 2147483647");
+  }
+  return count;
+}
+
 function pagination(url: URL) {
   const page = Number(url.searchParams.get("page") ?? 1);
   const limit = Number(url.searchParams.get("limit") ?? 20);
@@ -121,6 +134,23 @@ function pagination(url: URL) {
     throw new DomainError(400, "limit debe ser un entero entre 1 y 100");
   }
   return { page, limit };
+}
+
+function searchQuery(url: URL) {
+  const q = url.searchParams.get("q")?.trim();
+  if (q && (q.length > 200 || q.split(/\s+/).length > 20)) {
+    throw new DomainError(400, "La búsqueda admite hasta 200 caracteres y 20 palabras");
+  }
+  return q || undefined;
+}
+
+function studentFilters(url: URL) {
+  const gradeId = url.searchParams.get("gradeId") || undefined;
+  const academicCycleId = url.searchParams.get("academicCycleId") || undefined;
+  for (const [field, value] of [["gradeId", gradeId], ["academicCycleId", academicCycleId]]) {
+    if (value && !uuidRe.test(value)) throw new DomainError(400, `${field} no es válido`);
+  }
+  return { gradeId, academicCycleId };
 }
 
 function pathId(pathname: string, prefix: string) {
@@ -233,6 +263,7 @@ export async function handleSchoolRoutes(
           name: requireString(body.name, "name", 2, 100),
           level: body.level as GradeLevel,
           displayOrder: requireInt(body.displayOrder, "displayOrder"),
+          studentCount: optionalStudentCount(body.studentCount),
           minAge: optionalInt(body.minAge, "minAge"),
           maxAge: optionalInt(body.maxAge, "maxAge"),
           active: typeof body.active === "boolean" ? body.active : true,
@@ -265,6 +296,7 @@ export async function handleSchoolRoutes(
             ? { displayOrder: requireInt(body.displayOrder, "displayOrder") }
             : {}),
           ...(body.minAge !== undefined ? { minAge: optionalInt(body.minAge, "minAge") } : {}),
+          ...(body.studentCount !== undefined ? { studentCount: optionalStudentCount(body.studentCount) } : {}),
           ...(body.maxAge !== undefined ? { maxAge: optionalInt(body.maxAge, "maxAge") } : {}),
           ...(typeof body.active === "boolean" ? { active: body.active } : {}),
         }),
@@ -287,8 +319,9 @@ export async function handleSchoolRoutes(
         listStudents(principal.schoolId, {
           page,
           limit,
-          q: url.searchParams.get("q")?.trim() || undefined,
+          q: searchQuery(url),
           status,
+          ...studentFilters(url),
         }),
       );
       sendJson(request, response, 200, result);
@@ -322,6 +355,36 @@ export async function handleSchoolRoutes(
     }
 
     const studentPath = pathId(url.pathname, "/api/students/");
+    if (studentPath && studentPath.tail.length === 1) {
+      const principal = await authenticatedPrincipal(request);
+      if (studentPath.tail[0] === "summary" && request.method === "GET") {
+        requirePermission(principal, "student.read");
+        const data = await wrapDomain(() => getStudentSummary(principal.schoolId, studentPath.id));
+        sendJson(request, response, 200, { data });
+        return true;
+      }
+      if (studentPath.tail[0] === "authorized-pickups" && request.method === "PUT") {
+        requirePermission(principal, "student.write");
+        const body = await readJson(request);
+        if (!isObject(body) || Object.keys(body).some((key) => key !== "authorizedPickups")) {
+          throw new DomainError(400, "El cuerpo debe contener authorizedPickups");
+        }
+        const data = await wrapDomain(async () => saveStudentPickups(
+          principal.schoolId, principal.id, studentPath.id, parseAuthorizedPickups(body.authorizedPickups),
+        ));
+        sendJson(request, response, 200, { data });
+        return true;
+      }
+      if (studentPath.tail[0] === "photo" && request.method === "GET") {
+        requirePermission(principal, "student.read");
+        const photo = await wrapDomain(() => getStudentPhoto(principal.schoolId, studentPath.id));
+        const downloaded = await wrapDomain(() => downloadPrivateObject(photo.storagePath));
+        const bytes = Buffer.from(await downloaded.arrayBuffer());
+        response.writeHead(200, { ...helpers.responseHeaders(request), "Content-Type": photo.mimeType, "Cache-Control": "private, no-store" });
+        response.end(bytes);
+        return true;
+      }
+    }
     if (studentPath && studentPath.tail.length === 0 && request.method === "GET") {
       const principal = await authenticatedPrincipal(request);
       requirePermission(principal, "student.read");

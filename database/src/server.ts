@@ -238,7 +238,7 @@ function responseHeaders(request: IncomingMessage) {
   return {
     "Access-Control-Allow-Credentials": "true",
     "Access-Control-Allow-Headers": "Authorization, Content-Type",
-    "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
     ...(origin && isAllowedOrigin(request) ? { "Access-Control-Allow-Origin": origin } : {}),
     "Cache-Control": "no-store",
     "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
@@ -770,7 +770,7 @@ async function route(request: IncomingMessage, response: ServerResponse) {
     response.writeHead(204, responseHeaders(request));
     return response.end();
   }
-  if (["POST", "PATCH", "DELETE"].includes(request.method ?? "") && !isAllowedOrigin(request)) {
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method ?? "") && !isAllowedOrigin(request)) {
     throw new HttpError(403, "Origen no permitido");
   }
   if (request.method === "GET" && url.pathname === "/api/health") {
@@ -816,6 +816,7 @@ async function route(request: IncomingMessage, response: ServerResponse) {
   }
   const handledSchoolRoute = await handleSchoolRoutes(request, response, url, {
     sendJson,
+    responseHeaders,
     readJson,
     authenticatedPrincipal,
     requirePermission: (principal, permission) => {

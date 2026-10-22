@@ -1,4 +1,4 @@
-import type { EnrollmentStatus, Sex, StudentStatus } from "../generated/prisma/client";
+import type { EnrollmentStatus, Prisma, Sex, StudentStatus } from "../generated/prisma/client";
 import { prisma } from "../prisma";
 import {
   encryptCui,
@@ -8,14 +8,11 @@ import {
   normalizeCui,
   decryptCui,
 } from "../privacy/cui";
+import { buildFullName, buildSearchName } from "./personName";
 
 export const studentStatuses = ["ACTIVE", "INACTIVE", "GRADUATED", "WITHDRAWN"] as const;
 export const sexes = ["MALE", "FEMALE", "NOT_SPECIFIED"] as const;
 const terminalEnrollmentStatuses: EnrollmentStatus[] = ["CLOSED", "CANCELLED", "REJECTED"];
-
-function buildSearchName(givenNames: string, firstSurname: string, secondSurname?: string | null) {
-  return [givenNames, firstSurname, secondSurname].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
-}
 
 function parseOptionalDate(value: unknown, field: string) {
   if (value === null || value === undefined || value === "") return null;
@@ -85,7 +82,7 @@ function publicStudent(student: {
     firstSurname: student.firstSurname,
     secondSurname: student.secondSurname,
     usualName: student.usualName,
-    fullName: buildSearchName(student.givenNames, student.firstSurname, student.secondSurname),
+    fullName: buildFullName(student.givenNames, student.firstSurname, student.secondSurname),
     birthPlace: student.birthPlace,
     birthDate: student.birthDate ? student.birthDate.toISOString().slice(0, 10) : null,
     cuiMasked,
@@ -108,10 +105,18 @@ function publicStudent(student: {
   };
 }
 
+export const currentEnrollmentWhere = {
+  status: { notIn: terminalEnrollmentStatuses },
+  academicCycle: { status: { not: "CLOSED" as const } },
+};
+export const currentEnrollmentOrder = [
+  { academicCycle: { year: "desc" as const } }, { createdAt: "desc" as const }, { id: "desc" as const },
+];
+
 const studentInclude = {
   enrollments: {
-    where: { status: { notIn: terminalEnrollmentStatuses } },
-    orderBy: { createdAt: "desc" as const },
+    where: currentEnrollmentWhere,
+    orderBy: currentEnrollmentOrder,
     take: 1,
     select: {
       id: true,
@@ -124,17 +129,40 @@ const studentInclude = {
 
 export async function listStudents(
   schoolId: string,
-  options: { page: number; limit: number; q?: string; status?: StudentStatus },
+  options: { page: number; limit: number; q?: string; status?: StudentStatus; gradeId?: string; academicCycleId?: string },
 ) {
-  const where = {
+  const q = options.q?.trim();
+  const tokens = q?.split(/\s+/).filter(Boolean) ?? [];
+  const nameFilter = { AND: tokens.map((token) => ({ searchName: { contains: token, mode: "insensitive" as const } })) };
+  const today = new Date(new Date().toISOString().slice(0, 10));
+  const where: Prisma.StudentWhereInput = {
     schoolId,
     deletedAt: null,
     ...(options.status ? { status: options.status } : {}),
-    ...(options.q
+    ...(options.gradeId || options.academicCycleId ? {
+      enrollments: { some: {
+        ...(options.gradeId ? { gradeId: options.gradeId } : {}),
+        ...(options.academicCycleId ? { academicCycleId: options.academicCycleId } : {}),
+      } },
+    } : {}),
+    ...(q
       ? {
           OR: [
-            { searchName: { contains: options.q, mode: "insensitive" as const } },
-            { studentCode: { contains: options.q, mode: "insensitive" as const } },
+            nameFilter,
+            { studentCode: { contains: q, mode: "insensitive" } },
+            ...(/^[\d\s-]+$/.test(q) && isValidCui(q) ? [{ cuiHash: hashCui(q) }] : []),
+            { enrollments: { some: { OR: [
+              { grade: { OR: [{ name: { contains: q, mode: "insensitive" } }, { code: { contains: q, mode: "insensitive" } }] } },
+              { academicCycle: { OR: [
+                { name: { contains: q, mode: "insensitive" } },
+                ...(/^\d{4}$/.test(q) ? [{ year: Number(q) }] : []),
+              ] } },
+            ] } } },
+            { guardianLinks: { some: { active: true, startDate: { lte: today },
+              OR: [{ endDate: null }, { endDate: { gte: today } }],
+              guardian: { active: true, deletedAt: null, ...nameFilter },
+            } } },
+            { sponsorships: { some: { sponsor: { active: true, deletedAt: null, ...nameFilter } } } },
           ],
         }
       : {}),

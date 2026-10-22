@@ -1,5 +1,7 @@
 import type { EnrollmentStatus, Prisma } from "../generated/prisma/client";
 import { prisma } from "../prisma";
+import { parseAuthorizedPickups, replaceStudentPickups } from "./authorizedPickups";
+export { maxAuthorizedPickups } from "./authorizedPickups";
 
 /**
  * Formulario de inscripción por pasos (MA-25).
@@ -19,16 +21,23 @@ export const formSteps = [
 export type FormStepId = (typeof formSteps)[number]["id"];
 export type MissingField = { step: FormStepId; field: string; label: string };
 
-export const maxAuthorizedPickups = 3;
 const editableStatuses: EnrollmentStatus[] = ["DRAFT", "INCOMPLETE"];
+
+export type PersonNameInput = {
+  givenNames: string;
+  firstSurname: string;
+  secondSurname: string | null;
+};
 
 export type EnrollmentFormData = {
   contact: {
-    messageContactName: string | null;
+    messageContactGivenNames: string | null;
+    messageContactFirstSurname: string | null;
+    messageContactSecondSurname: string | null;
     messageContactPhone: string | null;
     messageContactRelationship: string | null;
     mayLeaveAlone: boolean;
-    authorizedPickups: Array<{ fullName: string; relationship: string; phone: string | null }>;
+    authorizedPickups: Array<PersonNameInput & { relationship: string; phone: string | null }>;
   };
   household: {
     livesWithMother: boolean;
@@ -52,7 +61,9 @@ export type EnrollmentFormData = {
     missingVaccines: string | null;
   } | null;
   signature: {
-    signerName: string | null;
+    signerGivenNames: string | null;
+    signerFirstSurname: string | null;
+    signerSecondSurname: string | null;
     signerRelationship: string | null;
   };
 };
@@ -75,7 +86,12 @@ export function missingEnrollmentFields(form: EnrollmentFormData): MissingField[
   const add = (step: FormStepId, field: string, label: string) => missing.push({ step, field, label });
 
   const { contact } = form;
-  if (!filled(contact.messageContactName)) add("contact", "messageContactName", "Nombre del contacto para mensajes");
+  if (!filled(contact.messageContactGivenNames)) {
+    add("contact", "messageContactGivenNames", "Nombres del contacto para mensajes");
+  }
+  if (!filled(contact.messageContactFirstSurname)) {
+    add("contact", "messageContactFirstSurname", "Primer apellido del contacto para mensajes");
+  }
   if (!filled(contact.messageContactPhone)) add("contact", "messageContactPhone", "Teléfono del contacto para mensajes");
   if (!filled(contact.messageContactRelationship)) {
     add("contact", "messageContactRelationship", "Parentesco del contacto para mensajes");
@@ -107,7 +123,12 @@ export function missingEnrollmentFields(form: EnrollmentFormData): MissingField[
     add("medical", "missingVaccines", "Vacunas pendientes");
   }
 
-  if (!filled(form.signature.signerName)) add("signature", "signerName", "Nombre de quien firma la inscripción");
+  if (!filled(form.signature.signerGivenNames)) {
+    add("signature", "signerGivenNames", "Nombres de quien firma la inscripción");
+  }
+  if (!filled(form.signature.signerFirstSurname)) {
+    add("signature", "signerFirstSurname", "Primer apellido de quien firma la inscripción");
+  }
   if (!filled(form.signature.signerRelationship)) {
     add("signature", "signerRelationship", "Parentesco de quien firma la inscripción");
   }
@@ -126,13 +147,18 @@ export class MissingFieldsError extends Error {
 
 const formSelect = {
   id: true,
+  studentId: true,
   status: true,
   rejectionReason: true,
-  messageContactName: true,
+  messageContactGivenNames: true,
+  messageContactFirstSurname: true,
+  messageContactSecondSurname: true,
   messageContactPhone: true,
   messageContactRelationship: true,
   mayLeaveAlone: true,
-  signerName: true,
+  signerGivenNames: true,
+  signerFirstSurname: true,
+  signerSecondSurname: true,
   signerRelationship: true,
   householdProfile: {
     select: {
@@ -161,8 +187,14 @@ const formSelect = {
   },
   authorizedPickups: {
     where: { active: true },
-    orderBy: { sortOrder: "asc" },
-    select: { fullName: true, relationship: true, phone: true },
+    orderBy: [{ firstSurname: "asc" }, { secondSurname: "asc" }, { givenNames: "asc" }, { sortOrder: "asc" }],
+    select: {
+      givenNames: true,
+      firstSurname: true,
+      secondSurname: true,
+      relationship: true,
+      phone: true,
+    },
   },
 } as const satisfies Prisma.EnrollmentSelect;
 
@@ -172,15 +204,28 @@ type Client = Prisma.TransactionClient | typeof prisma;
 function toFormData(row: FormRow): EnrollmentFormData {
   return {
     contact: {
-      messageContactName: row.messageContactName,
+      messageContactGivenNames: row.messageContactGivenNames,
+      messageContactFirstSurname: row.messageContactFirstSurname,
+      messageContactSecondSurname: row.messageContactSecondSurname,
       messageContactPhone: row.messageContactPhone,
       messageContactRelationship: row.messageContactRelationship,
       mayLeaveAlone: row.mayLeaveAlone,
-      authorizedPickups: row.authorizedPickups,
+      authorizedPickups: row.authorizedPickups.map((pickup) => ({
+        givenNames: pickup.givenNames,
+        firstSurname: pickup.firstSurname,
+        secondSurname: pickup.secondSurname,
+        relationship: pickup.relationship,
+        phone: pickup.phone,
+      })),
     },
     household: row.householdProfile,
     medical: row.medicalProfile,
-    signature: { signerName: row.signerName, signerRelationship: row.signerRelationship },
+    signature: {
+      signerGivenNames: row.signerGivenNames,
+      signerFirstSurname: row.signerFirstSurname,
+      signerSecondSurname: row.signerSecondSurname,
+      signerRelationship: row.signerRelationship,
+    },
   };
 }
 
@@ -266,31 +311,35 @@ export function parseEnrollmentFormPatch(body: unknown) {
   const sections = pickFields("el formulario", body, ["contact", "household", "medical", "signature"])!;
 
   const contactInput = pickFields("contact", sections.contact, [
-    "messageContactName",
+    "messageContactGivenNames",
+    "messageContactFirstSurname",
+    "messageContactSecondSurname",
     "messageContactPhone",
     "messageContactRelationship",
     "mayLeaveAlone",
     "authorizedPickups",
   ]);
-  let authorizedPickups: Array<{ fullName: string; relationship: string; phone: string | null }> | undefined;
-  if (contactInput?.authorizedPickups !== undefined) {
-    if (!Array.isArray(contactInput.authorizedPickups)) throw invalid("authorizedPickups debe ser una lista");
-    if (contactInput.authorizedPickups.length > maxAuthorizedPickups) {
-      throw invalid(`Se permiten como máximo ${maxAuthorizedPickups} personas autorizadas`);
-    }
-    authorizedPickups = contactInput.authorizedPickups.map((pickup, index) => {
-      const fields = pickFields(`la persona autorizada ${index + 1}`, pickup, ["fullName", "relationship", "phone"])!;
-      const fullName = optionalText(fields.fullName, "El nombre de la persona autorizada", 160);
-      const relationship = optionalText(fields.relationship, "El parentesco de la persona autorizada", 80);
-      if (!fullName || !relationship) {
-        throw invalid(`La persona autorizada ${index + 1} necesita nombre y parentesco`);
-      }
-      return { fullName, relationship, phone: optionalText(fields.phone, "El teléfono", 30) ?? null };
-    });
-  }
+  const authorizedPickups = contactInput?.authorizedPickups === undefined
+    ? undefined
+    : parseAuthorizedPickups(contactInput.authorizedPickups);
+
   const contact = contactInput
     ? definedOnly({
-        messageContactName: optionalText(contactInput.messageContactName, "El nombre del contacto", 160),
+        messageContactGivenNames: optionalText(
+          contactInput.messageContactGivenNames,
+          "Los nombres del contacto",
+          120,
+        ),
+        messageContactFirstSurname: optionalText(
+          contactInput.messageContactFirstSurname,
+          "El primer apellido del contacto",
+          80,
+        ),
+        messageContactSecondSurname: optionalText(
+          contactInput.messageContactSecondSurname,
+          "El segundo apellido del contacto",
+          80,
+        ),
         messageContactPhone: optionalText(contactInput.messageContactPhone, "El teléfono del contacto", 30),
         messageContactRelationship: optionalText(
           contactInput.messageContactRelationship,
@@ -353,10 +402,21 @@ export function parseEnrollmentFormPatch(body: unknown) {
       })
     : undefined;
 
-  const signatureInput = pickFields("signature", sections.signature, ["signerName", "signerRelationship"]);
+  const signatureInput = pickFields("signature", sections.signature, [
+    "signerGivenNames",
+    "signerFirstSurname",
+    "signerSecondSurname",
+    "signerRelationship",
+  ]);
   const signature = signatureInput
     ? definedOnly({
-        signerName: optionalText(signatureInput.signerName, "El nombre de quien firma", 160),
+        signerGivenNames: optionalText(signatureInput.signerGivenNames, "Los nombres de quien firma", 120),
+        signerFirstSurname: optionalText(signatureInput.signerFirstSurname, "El primer apellido de quien firma", 80),
+        signerSecondSurname: optionalText(
+          signatureInput.signerSecondSurname,
+          "El segundo apellido de quien firma",
+          80,
+        ),
         signerRelationship: optionalText(signatureInput.signerRelationship, "El parentesco de quien firma", 80),
       })
     : undefined;
@@ -385,6 +445,13 @@ export async function saveEnrollmentForm(
       data: { ...contactFields, ...patch.signature },
     });
     if (authorizedPickups) {
+      const latest = await tx.enrollment.findFirst({
+        where: { studentId: current.studentId, status: { in: ["DRAFT", "INCOMPLETE", "PENDING_REVIEW", "APPROVED"] },
+          academicCycle: { status: { not: "CLOSED" } } },
+        orderBy: [{ academicCycle: { year: "desc" } }, { createdAt: "desc" }, { id: "desc" }],
+        select: { id: true },
+      });
+      if (latest?.id === enrollmentId) await replaceStudentPickups(tx, current.studentId, authorizedPickups);
       await tx.authorizedPickup.deleteMany({ where: { enrollmentId } });
       if (authorizedPickups.length > 0) {
         await tx.authorizedPickup.createMany({

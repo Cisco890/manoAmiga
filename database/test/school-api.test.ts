@@ -18,6 +18,7 @@ let adminId = "";
 const createdStudentIds: string[] = [];
 const createdEnrollmentIds: string[] = [];
 const createdCycleIds: string[] = [];
+const createdGradeIds: string[] = [];
 
 before(async () => {
   const [school, adminRole] = await Promise.all([
@@ -59,6 +60,9 @@ after(async () => {
   if (createdCycleIds.length) {
     await prisma.academicCycle.deleteMany({ where: { id: { in: createdCycleIds } } });
   }
+  if (createdGradeIds.length) {
+    await prisma.grade.deleteMany({ where: { id: { in: createdGradeIds } } });
+  }
   await prisma.auditEvent.deleteMany({ where: { userId: adminId } });
   await prisma.user.deleteMany({ where: { id: adminId } });
   await prisma.$disconnect();
@@ -87,6 +91,49 @@ const completeForm = (token: string, enrollmentId: string) =>
     headers: auth(token),
     body: JSON.stringify(completeEnrollmentForm),
   });
+
+test("la cantidad de estudiantes se guarda, se edita y rechaza valores inválidos", async () => {
+  const token = await login();
+  const response = await fetch(`${baseUrl}/api/grades`, {
+    method: "POST",
+    headers: auth(token),
+    body: JSON.stringify({
+      code: `COUNT-${Date.now()}`,
+      name: "Grado con estudiantes",
+      level: "PRIMARY",
+      displayOrder: 99,
+      studentCount: 25,
+    }),
+  });
+  assert.equal(response.status, 201);
+  const { data: grade } = (await response.json()) as { data: { id: string; studentCount: number } };
+  createdGradeIds.push(grade.id);
+  assert.equal(grade.studentCount, 25);
+  assert.equal((await prisma.grade.findUniqueOrThrow({ where: { id: grade.id } })).studentCount, 25);
+
+  const patch = (body: unknown) => fetch(`${baseUrl}/api/grades/${grade.id}`, {
+    method: "PATCH",
+    headers: auth(token),
+    body: JSON.stringify(body),
+  });
+  for (const studentCount of [-1, 1.5, "25", true, 2147483648]) {
+    assert.equal((await patch({ studentCount })).status, 400);
+  }
+  const unchanged = await patch({ name: "Grado actualizado" });
+  assert.equal(unchanged.status, 200);
+  assert.equal(((await unchanged.json()) as { data: { studentCount: number } }).data.studentCount, 25);
+
+  const zero = await patch({ studentCount: 0 });
+  assert.equal(zero.status, 200);
+  assert.equal(((await zero.json()) as { data: { studentCount: number } }).data.studentCount, 0);
+  const list = await fetch(`${baseUrl}/api/grades`, { headers: auth(token) });
+  const listed = (await list.json()) as { data: Array<{ id: string; studentCount: number | null }> };
+  assert.equal(listed.data.find(({ id }) => id === grade.id)?.studentCount, 0);
+
+  const cleared = await patch({ studentCount: null });
+  assert.equal(cleared.status, 200);
+  assert.equal(((await cleared.json()) as { data: { studentCount: number | null } }).data.studentCount, null);
+});
 
 test("ciclos, grados, alumnos e inscripciones cumplen el flujo escolar", async () => {
   const token = await login();

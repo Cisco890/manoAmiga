@@ -13,15 +13,68 @@ export const openApiDocument = {
     title: "API CRM Mano Amiga",
     version: "1.0.0",
     description:
-      "API REST para autenticación y administración de usuarios del CRM Mano Amiga. Los endpoints de usuarios requieren el permiso user.manage.",
+      "API REST para autenticación, usuarios y expedientes estudiantiles del CRM Mano Amiga. Los endpoints de usuarios requieren user.manage; la búsqueda y ficha de alumnos requieren student.read.",
   },
   servers: [{ url: "/", description: "Servidor actual" }],
   tags: [
     { name: "Sistema" },
     { name: "Autenticación" },
     { name: "Usuarios" },
+    { name: "Alumnos" },
   ],
   paths: {
+    "/api/students": {
+      get: {
+        tags: ["Alumnos"], summary: "Buscar alumnos en el colegio del usuario", security: [{ bearerAuth: [] }],
+        description: "Requiere student.read. Busca por nombre (palabras en cualquier orden), código, CUI completo, grado, ciclo y nombre de padre/madre/tutor/padrino. El CUI se consulta por hash y se devuelve enmascarado. Los filtros de grado y ciclo deben coincidir en la misma inscripción, incluidas las históricas.",
+        parameters: [
+          { name: "q", in: "query", schema: { type: "string", maxLength: 200 } },
+          { name: "gradeId", in: "query", schema: { type: "string", format: "uuid" } },
+          { name: "academicCycleId", in: "query", schema: { type: "string", format: "uuid" } },
+          { name: "status", in: "query", schema: { type: "string", enum: ["ACTIVE", "INACTIVE", "GRADUATED", "WITHDRAWN"] } },
+          { name: "page", in: "query", schema: { type: "integer", minimum: 1, default: 1 } },
+          { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 100, default: 20 } },
+        ],
+        responses: { "200": { description: "Alumnos paginados: data y pagination (page, limit, total, pages)." }, "400": errorResponse, "401": errorResponse, "403": errorResponse },
+      },
+    },
+    "/api/students/{id}/summary": {
+      get: {
+        tags: ["Alumnos"], summary: "Ficha resumida del alumno", security: [{ bearerAuth: [] }],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        description: "Requiere student.read. Incluye student, photo, currentEnrollment, responsible, guardians, sponsors, authorizedPickups, documents e history. Cada inscripción histórica conserva grado, ciclo, estado, documentos y autorizados. La inscripción actual es la abierta más reciente en un ciclo no cerrado. No incluye datos médicos, documentos de identidad sin enmascarar ni rutas privadas de almacenamiento.",
+        responses: { "200": { description: "Ficha consolidada en data. Los documentos sin generar tienen estado MISSING." }, "401": errorResponse, "403": errorResponse, "404": errorResponse },
+      },
+    },
+    "/api/students/{id}/authorized-pickups": {
+      put: {
+        tags: ["Alumnos"], summary: "Actualizar personas autorizadas para recoger al alumno", security: [{ bearerAuth: [] }],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        description: "Requiere student.write. Reemplaza la lista vigente, independiente de guardianes e inscripciones. Una lista vacía revoca todas las autorizaciones. Los registros históricos y aprobados no se modifican.",
+        requestBody: { required: true, content: { "application/json": { schema: {
+          type: "object", required: ["authorizedPickups"], additionalProperties: false,
+          properties: { authorizedPickups: { type: "array", maxItems: 3, items: {
+            type: "object", required: ["givenNames", "firstSurname", "relationship"], additionalProperties: false,
+            properties: {
+              givenNames: { type: "string", minLength: 1, maxLength: 120 },
+              firstSurname: { type: "string", minLength: 1, maxLength: 80 },
+              secondSurname: { type: ["string", "null"], maxLength: 80 },
+              relationship: { type: "string", minLength: 1, maxLength: 80 },
+              phone: { type: ["string", "null"], maxLength: 30 },
+            },
+          } } },
+        } } } },
+        responses: { "200": { description: "Lista guardada en data." }, "400": errorResponse, "401": errorResponse, "403": errorResponse, "404": errorResponse },
+      },
+    },
+    "/api/students/{id}/photo": {
+      get: {
+        tags: ["Alumnos"], summary: "Consultar la fotografía activa del alumno", security: [{ bearerAuth: [] }],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        description: "Requiere student.read. Entrega la imagen desde almacenamiento privado mediante la API, sin exponer la clave ni la ruta del objeto. La respuesta no se almacena en caché.",
+        responses: { "200": { description: "Fotografía", content: { "image/png": { schema: { type: "string", format: "binary" } }, "image/jpeg": { schema: { type: "string", format: "binary" } }, "image/webp": { schema: { type: "string", format: "binary" } } } }, "401": errorResponse, "403": errorResponse, "404": errorResponse, "415": errorResponse, "502": errorResponse, "503": errorResponse },
+      },
+    },
     "/api/health": {
       get: {
         tags: ["Sistema"],

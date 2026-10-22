@@ -56,6 +56,7 @@ export function publicGrade(grade: {
   name: string;
   level: GradeLevel;
   displayOrder: number;
+  studentCount: number | null;
   minAge: number | null;
   maxAge: number | null;
   active: boolean;
@@ -69,6 +70,7 @@ export function publicGrade(grade: {
     name: grade.name,
     level: grade.level,
     displayOrder: grade.displayOrder,
+    studentCount: grade.studentCount,
     minAge: grade.minAge,
     maxAge: grade.maxAge,
     active: grade.active,
@@ -182,6 +184,7 @@ export async function createGrade(
     name: string;
     level: GradeLevel;
     displayOrder: number;
+    studentCount?: number | null;
     minAge?: number | null;
     maxAge?: number | null;
     active?: boolean;
@@ -194,6 +197,7 @@ export async function createGrade(
       name: input.name,
       level: input.level,
       displayOrder: input.displayOrder,
+      studentCount: input.studentCount ?? null,
       minAge: input.minAge ?? null,
       maxAge: input.maxAge ?? null,
       active: input.active ?? true,
@@ -210,6 +214,7 @@ export async function updateGrade(
     name: string;
     level: GradeLevel;
     displayOrder: number;
+    studentCount: number | null;
     minAge: number | null;
     maxAge: number | null;
     active: boolean;

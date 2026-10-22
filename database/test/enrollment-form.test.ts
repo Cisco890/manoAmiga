@@ -11,7 +11,9 @@ import { completeEnrollmentForm, createSchoolTestContext } from "./support/schoo
 
 const emptyForm: EnrollmentFormData = {
   contact: {
-    messageContactName: null,
+    messageContactGivenNames: null,
+    messageContactFirstSurname: null,
+    messageContactSecondSurname: null,
     messageContactPhone: null,
     messageContactRelationship: null,
     mayLeaveAlone: false,
@@ -19,16 +21,31 @@ const emptyForm: EnrollmentFormData = {
   },
   household: null,
   medical: null,
-  signature: { signerName: null, signerRelationship: null },
+  signature: {
+    signerGivenNames: null,
+    signerFirstSurname: null,
+    signerSecondSurname: null,
+    signerRelationship: null,
+  },
 };
 
 const fullForm: EnrollmentFormData = {
   contact: {
-    messageContactName: "María López",
+    messageContactGivenNames: "María",
+    messageContactFirstSurname: "López",
+    messageContactSecondSurname: null,
     messageContactPhone: "5555-1234",
     messageContactRelationship: "Madre",
     mayLeaveAlone: false,
-    authorizedPickups: [{ fullName: "José López", relationship: "Abuelo", phone: null }],
+    authorizedPickups: [
+      {
+        givenNames: "José",
+        firstSurname: "López",
+        secondSurname: null,
+        relationship: "Abuelo",
+        phone: null,
+      },
+    ],
   },
   household: {
     livesWithMother: true,
@@ -51,7 +68,12 @@ const fullForm: EnrollmentFormData = {
     vaccinationsComplete: true,
     missingVaccines: null,
   },
-  signature: { signerName: "María López", signerRelationship: "Madre" },
+  signature: {
+    signerGivenNames: "María",
+    signerFirstSurname: "López",
+    signerSecondSurname: null,
+    signerRelationship: "Madre",
+  },
 };
 
 const fieldsOf = (missing: MissingField[]) => missing.map(({ field }) => field);
@@ -60,14 +82,16 @@ describe("missingEnrollmentFields", () => {
   test("un formulario vacío lista todos los obligatorios, agrupados por paso", () => {
     const missing = missingEnrollmentFields(emptyForm);
     assert.deepEqual(fieldsOf(missing), [
-      "messageContactName",
+      "messageContactGivenNames",
+      "messageContactFirstSurname",
       "messageContactPhone",
       "messageContactRelationship",
       "authorizedPickups",
       "livesWith",
       "householdSize",
       "bloodType",
-      "signerName",
+      "signerGivenNames",
+      "signerFirstSurname",
       "signerRelationship",
     ]);
     assert.deepEqual([...new Set(missing.map(({ step }) => step))], ["contact", "household", "medical", "signature"]);
@@ -79,8 +103,16 @@ describe("missingEnrollmentFields", () => {
   });
 
   test("los textos con solo espacios cuentan como vacíos", () => {
-    const form = { ...fullForm, signature: { signerName: "   ", signerRelationship: "Madre" } };
-    assert.deepEqual(fieldsOf(missingEnrollmentFields(form)), ["signerName"]);
+    const form = {
+      ...fullForm,
+      signature: {
+        signerGivenNames: "   ",
+        signerFirstSurname: "López",
+        signerSecondSurname: null,
+        signerRelationship: "Madre",
+      },
+    };
+    assert.deepEqual(fieldsOf(missingEnrollmentFields(form)), ["signerGivenNames"]);
   });
 
   test("no exige personas autorizadas si el alumno puede retirarse solo", () => {
@@ -116,24 +148,24 @@ describe("missingEnrollmentFields", () => {
 
 describe("parseEnrollmentFormPatch", () => {
   test("acepta borradores parciales y normaliza espacios", () => {
-    const patch = parseEnrollmentFormPatch({ signature: { signerName: "  Ana  " } });
+    const patch = parseEnrollmentFormPatch({ signature: { signerGivenNames: "  Ana  " } });
     assert.deepEqual(patch, {
       contact: undefined,
       household: undefined,
       medical: undefined,
-      signature: { signerName: "Ana" },
+      signature: { signerGivenNames: "Ana" },
     });
   });
 
   test("rechaza campos desconocidos, tipos incorrectos y más de 3 personas autorizadas", () => {
-    const pickup = { fullName: "Ana", relationship: "Tía" };
+    const pickup = { givenNames: "Ana", firstSurname: "Pérez", relationship: "Tía" };
     for (const body of [
       { status: "APPROVED" },
       { signature: { approvedByUserId: "x" } },
       { household: { householdSize: 0 } },
       { household: { livesWithMother: "sí" } },
       { contact: { authorizedPickups: [pickup, pickup, pickup, pickup] } },
-      { contact: { authorizedPickups: [{ fullName: "Ana" }] } },
+      { contact: { authorizedPickups: [{ givenNames: "Ana" }] } },
     ]) {
       assert.throws(() => parseEnrollmentFormPatch(body), { status: 400 }, JSON.stringify(body));
     }
@@ -168,12 +200,12 @@ describe("API del formulario de inscripción", () => {
     });
     assert.equal(response.status, 422);
     const body = (await response.json()) as { message: string; missingFields: MissingField[] };
-    assert.match(body.message, /faltan 9 campos obligatorios/);
-    assert.equal(body.missingFields.length, 9);
+    assert.match(body.message, /faltan 11 campos obligatorios/);
+    assert.equal(body.missingFields.length, 11);
     assert.deepEqual(body.missingFields[0], {
       step: "contact",
-      field: "messageContactName",
-      label: "Nombre del contacto para mensajes",
+      field: "messageContactGivenNames",
+      label: "Nombres del contacto para mensajes",
     });
 
     const unchanged = await prisma.enrollment.findUniqueOrThrow({ where: { id: enrollment.id } });
@@ -186,9 +218,9 @@ describe("API del formulario de inscripción", () => {
 
     const initial = (await (await context.api(adminToken, path)).json()) as FormBody;
     assert.equal(initial.data.editable, true);
-    assert.equal(initial.data.missingFields.length, 9);
+    assert.equal(initial.data.missingFields.length, 11);
 
-    let remaining = 9;
+    let remaining = 11;
     for (const step of ["contact", "household", "medical", "signature"] as const) {
       const saved = await context.api(adminToken, path, "PATCH", { [step]: completeEnrollmentForm[step] });
       assert.equal(saved.status, 200, step);
@@ -200,7 +232,8 @@ describe("API del formulario de inscripción", () => {
     assert.equal(remaining, 0);
 
     const reloaded = (await (await context.api(adminToken, path)).json()) as FormBody;
-    assert.equal(reloaded.data.form.contact.authorizedPickups[0].fullName, "José López");
+    assert.equal(reloaded.data.form.contact.authorizedPickups[0].givenNames, "José");
+    assert.equal(reloaded.data.form.contact.authorizedPickups[0].firstSurname, "López");
     assert.equal(reloaded.data.form.household?.householdSize, 4);
 
     const submitted = await context.api(adminToken, `/enrollments/${enrollment.id}/status`, "PATCH", {
@@ -215,19 +248,21 @@ describe("API del formulario de inscripción", () => {
     await context.api(adminToken, path, "PATCH", {
       contact: {
         authorizedPickups: [
-          { fullName: "Uno", relationship: "Tío" },
-          { fullName: "Dos", relationship: "Tía" },
+          { givenNames: "Uno", firstSurname: "A", relationship: "Tío" },
+          { givenNames: "Dos", firstSurname: "B", relationship: "Tía" },
         ],
       },
     });
     await context.api(adminToken, path, "PATCH", {
-      contact: { authorizedPickups: [{ fullName: "Tres", relationship: "Abuela" }] },
+      contact: {
+        authorizedPickups: [{ givenNames: "Tres", firstSurname: "C", relationship: "Abuela" }],
+      },
     });
 
     const pickups = await prisma.authorizedPickup.findMany({ where: { enrollmentId: enrollment.id } });
     assert.deepEqual(
-      pickups.map(({ fullName, sortOrder }) => [fullName, sortOrder]),
-      [["Tres", 1]],
+      pickups.map(({ givenNames, firstSurname, sortOrder }) => [givenNames, firstSurname, sortOrder]),
+      [["Tres", "C", 1]],
     );
   });
 
@@ -236,7 +271,7 @@ describe("API del formulario de inscripción", () => {
     const pending = await context.createEnrollmentRow(student.id, cycle.id, "PENDING_REVIEW");
 
     const response = await context.api(adminToken, `/enrollments/${pending.id}/form`, "PATCH", {
-      signature: { signerName: "Otra persona" },
+      signature: { signerGivenNames: "Otra", signerFirstSurname: "Persona" },
     });
     assert.equal(response.status, 409);
     const form = (await (await context.api(adminToken, `/enrollments/${pending.id}/form`)).json()) as FormBody;
@@ -248,7 +283,11 @@ describe("API del formulario de inscripción", () => {
     const token = await context.login("collaborator");
     assert.equal((await context.api(token, `/enrollments/${enrollment.id}/form`)).status, 403);
     assert.equal(
-      (await context.api(token, `/enrollments/${enrollment.id}/form`, "PATCH", { signature: {} })).status,
+      (
+        await context.api(token, `/enrollments/${enrollment.id}/form`, "PATCH", {
+          contact: { messageContactGivenNames: "X" },
+        })
+      ).status,
       403,
     );
   });

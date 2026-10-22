@@ -11,15 +11,30 @@ const password = "ClaveDePrueba-2026";
 /** Datos mínimos que completan todos los pasos obligatorios del formulario de inscripción. */
 export const completeEnrollmentForm = {
   contact: {
-    messageContactName: "María López",
+    messageContactGivenNames: "María",
+    messageContactFirstSurname: "López",
+    messageContactSecondSurname: null,
     messageContactPhone: "5555-1234",
     messageContactRelationship: "Madre",
     mayLeaveAlone: false,
-    authorizedPickups: [{ fullName: "José López", relationship: "Abuelo", phone: "5555-9876" }],
+    authorizedPickups: [
+      {
+        givenNames: "José",
+        firstSurname: "López",
+        secondSurname: null,
+        relationship: "Abuelo",
+        phone: "5555-9876",
+      },
+    ],
   },
   household: { livesWithMother: true, householdSize: 4 },
   medical: { bloodType: "O+", vaccinationsComplete: true },
-  signature: { signerName: "María López", signerRelationship: "Madre" },
+  signature: {
+    signerGivenNames: "María",
+    signerFirstSurname: "López",
+    signerSecondSurname: null,
+    signerRelationship: "Madre",
+  },
 };
 
 /**

@@ -8,6 +8,25 @@ export type SupabaseStorageConfig = {
 
 export type StorageCheck = { name: string; passed: boolean; detail: string };
 
+/** Downloads private objects through the API; credentials and storage paths stay on the server. */
+export async function downloadPrivateObject(path: string, config?: SupabaseStorageConfig) {
+  const storageConfig = config ?? {
+    url: process.env.SUPABASE_URL ?? '',
+    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
+    bucket: process.env.SUPABASE_STORAGE_BUCKET ?? 'crm-privado',
+  };
+  if (!storageConfig.url || !storageConfig.serviceRoleKey) {
+    throw Object.assign(new Error("El almacenamiento de fotografías no está configurado"), { status: 503 });
+  }
+  const encodedPath = path.split('/').map(encodeURIComponent).join('/');
+  const response = await (storageConfig.fetch ?? fetch)(
+    storageUrl(storageConfig, `/object/authenticated/${encodeURIComponent(storageConfig.bucket)}/${encodedPath}`),
+    { headers: serviceHeaders(storageConfig), signal: AbortSignal.timeout(5000) },
+  );
+  if (!response.ok) throw Object.assign(new Error("No se pudo cargar la fotografía"), { status: response.status === 404 ? 404 : 502 });
+  return response;
+}
+
 // Fotografías de alumnos y documentos generados (fichas, carnés y formularios).
 export const privateBucketSettings = {
   public: false,
