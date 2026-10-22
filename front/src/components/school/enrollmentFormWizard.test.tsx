@@ -58,6 +58,7 @@ function formResponse(overrides: Partial<EnrollmentForm> = {}): { data: Enrollme
       status: 'DRAFT',
       rejectionReason: null,
       editable: true,
+      medicalRestricted: false,
       steps: [],
       form: emptyForm,
       missingFields: missingAll,
@@ -192,6 +193,19 @@ describe('formulario de inscripción por pasos', () => {
     await user.click(screen.getByRole('button', { name: 'Siguiente' }));
     expect(await screen.findByText('Contacto para mensajes')).toBeTruthy();
     expect(patches(request, '/form')).toHaveLength(0);
+  });
+
+  it('sin permiso médico el paso Salud no muestra ni guarda datos de salud', async () => {
+    const { request } = renderWizard(() => json(200, formResponse({ medicalRestricted: true })), 'contact');
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: /Salud/ }));
+    expect(await screen.findByText(/No tiene permiso para ver ni registrar información médica/)).toBeTruthy();
+    expect(screen.queryByLabelText('Tipo de sangre')).toBeNull();
+    const before = patches(request, '/form').length;
+    await user.click(screen.getByRole('button', { name: 'Siguiente' }));
+    expect(await screen.findByLabelText('Nombres de quien firma')).toBeTruthy();
+    expect(patches(request, '/form')).toHaveLength(before);
   });
 
   it('muestra el motivo de devolución y bloquea la edición fuera de Borrador o Incompleta', async () => {

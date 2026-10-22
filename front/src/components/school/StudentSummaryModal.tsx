@@ -6,6 +6,7 @@ import { formatDate } from '../../lib/dates.ts';
 import { enrollmentStatusLabels, studentStatusLabels } from '../../lib/labels.ts';
 import { StudentAddressPanel } from './AddressForm.tsx';
 import { GuardiansPanel } from './GuardiansPanel.tsx';
+import { MedicalProfileSection } from './MedicalProfileSection.tsx';
 import modal from './FormModal.module.css';
 import shared from '../../pages/schoolShared.module.css';
 import styles from './StudentSummaryModal.module.css';
@@ -135,6 +136,10 @@ export function StudentSummaryModal({ studentId, onClose }: { studentId: string;
                 <h3 id="student-address-title">Dirección</h3>
                 <StudentAddressPanel studentId={studentId} request={request} canWrite={can('student.write')} />
               </section>
+              {can('student.medical.read') ? <section className={styles.section} aria-labelledby="student-medical-title">
+                <h3 id="student-medical-title">Perfil médico</h3>
+                <MedicalProfileSection studentId={studentId} request={request} />
+              </section> : null}
               <section className={styles.section} aria-labelledby="student-sponsors-title">
                 <h3 id="student-sponsors-title">Padrino</h3>
                 {summary.sponsors.length ? <ul className={styles.list}>{summary.sponsors.map((sponsor) => <li key={sponsor.sponsorshipId}>{sponsor.fullName}<br /><span className={styles.muted}>Desde {formatDate(sponsor.startDate)}</span></li>)}</ul> : <p className={styles.muted}>Sin padrino activo.</p>}

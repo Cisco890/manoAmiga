@@ -69,6 +69,7 @@ const fullForm: EnrollmentFormData = {
     medicationAllergyDetails: null,
     vaccinationsComplete: true,
     missingVaccines: null,
+    emergencyMedicalNotes: null,
   },
   signature: {
     signerGivenNames: "María",

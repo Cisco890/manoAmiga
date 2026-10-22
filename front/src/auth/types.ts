@@ -4,6 +4,7 @@ export type PermissionCode =
   | 'dashboard.read'
   | 'student.read'
   | 'student.write'
+  | 'student.medical.read'
   | 'enrollment.read'
   | 'enrollment.write'
   | 'enrollment.approve'

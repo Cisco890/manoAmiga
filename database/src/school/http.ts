@@ -55,6 +55,7 @@ import {
   updateGuardian,
   updateGuardianLink,
 } from "./guardians";
+import { getStudentMedicalProfile } from "./medicalProfile";
 import { getStudentPhoto, getStudentSummary } from "./studentSummary";
 import { downloadPrivateObject } from "../storage/supabase-storage";
 
@@ -423,6 +424,15 @@ export async function handleSchoolRoutes(
         sendJson(request, response, 200, { data });
         return true;
       }
+      if (studentPath.tail[0] === "medical-profile" && request.method === "GET") {
+        // MA-29: solo roles autorizados (Secretaría y Dirección) ven el perfil médico.
+        requirePermission(principal, "student.medical.read");
+        const data = await wrapDomain(() =>
+          getStudentMedicalProfile(principal.schoolId, principal.id, studentPath.id),
+        );
+        sendJson(request, response, 200, { data });
+        return true;
+      }
       if (studentPath.tail[0] === "photo" && request.method === "GET") {
         requirePermission(principal, "student.read");
         const photo = await wrapDomain(() => getStudentPhoto(principal.schoolId, studentPath.id));
@@ -634,15 +644,16 @@ export async function handleSchoolRoutes(
     if (enrollmentPath && enrollmentPath.tail.length === 1 && enrollmentPath.tail[0] === "form") {
       const principal = await authenticatedPrincipal(request);
       requirePermission(principal, "enrollment.write");
+      const access = { canReadMedical: hasAnyPermission(principal, ["student.medical.read"]) };
       if (request.method === "GET") {
-        const data = await wrapDomain(() => getEnrollmentForm(principal.schoolId, enrollmentPath.id));
+        const data = await wrapDomain(() => getEnrollmentForm(principal.schoolId, enrollmentPath.id, access));
         sendJson(request, response, 200, { data });
         return true;
       }
       if (request.method === "PATCH") {
         const body = await readJson(request);
         const data = await wrapDomain(async () =>
-          saveEnrollmentForm(principal.schoolId, principal.id, enrollmentPath.id, parseEnrollmentFormPatch(body)),
+          saveEnrollmentForm(principal.schoolId, principal.id, enrollmentPath.id, parseEnrollmentFormPatch(body), access),
         );
         sendJson(request, response, 200, { data });
         return true;

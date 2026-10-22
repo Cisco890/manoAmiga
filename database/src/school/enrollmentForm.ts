@@ -1,5 +1,6 @@
 import type { EnrollmentStatus, Prisma } from "../generated/prisma/client";
 import { prisma } from "../prisma";
+import { decryptMedicalFields, encryptMedicalFields } from "../privacy/medical";
 import { parseAuthorizedPickups, replaceStudentPickups } from "./authorizedPickups";
 import { studentFormattedAddress } from "./addresses";
 import { hasPrimaryGuardian } from "./guardians";
@@ -68,6 +69,8 @@ export type EnrollmentFormData = {
     medicationAllergyDetails: string | null;
     vaccinationsComplete: boolean | null;
     missingVaccines: string | null;
+    /** Indicaciones para una emergencia (MA-29). */
+    emergencyMedicalNotes: string | null;
   } | null;
   signature: {
     signerGivenNames: string | null;
@@ -197,6 +200,7 @@ const formSelect = {
       medicationAllergyDetails: true,
       vaccinationsComplete: true,
       missingVaccines: true,
+      emergencyMedicalNotes: true,
     },
   },
   authorizedPickups: {
@@ -236,7 +240,8 @@ function toFormData(row: FormRow, extras: FormExtras): EnrollmentFormData {
       })),
     },
     household: row.householdProfile,
-    medical: row.medicalProfile,
+    // MA-29: los textos libres se guardan cifrados y solo se descifran aquí.
+    medical: row.medicalProfile && decryptMedicalFields(row.medicalProfile),
     signature: {
       signerGivenNames: row.signerGivenNames,
       signerFirstSurname: row.signerFirstSurname,
@@ -259,21 +264,26 @@ async function findFormRow(client: Client, schoolId: string, enrollmentId: strin
   return { row, extras };
 }
 
-function publicForm({ row, extras }: Awaited<ReturnType<typeof findFormRow>>) {
+/** MA-29: el perfil médico solo se muestra y se edita con el permiso student.medical.read. */
+export type FormAccess = { canReadMedical: boolean };
+
+function publicForm({ row, extras }: Awaited<ReturnType<typeof findFormRow>>, access: FormAccess) {
   const form = toFormData(row, extras);
   return {
     enrollmentId: row.id,
     status: row.status,
     rejectionReason: row.rejectionReason,
     editable: editableStatuses.includes(row.status),
+    medicalRestricted: !access.canReadMedical,
     steps: formSteps,
-    form,
+    form: access.canReadMedical ? form : { ...form, medical: null },
+    // Los faltantes se calculan con los datos reales; las etiquetas no revelan valores médicos.
     missingFields: missingEnrollmentFields(form),
   };
 }
 
-export async function getEnrollmentForm(schoolId: string, enrollmentId: string) {
-  return publicForm(await findFormRow(prisma, schoolId, enrollmentId));
+export async function getEnrollmentForm(schoolId: string, enrollmentId: string, access: FormAccess) {
+  return publicForm(await findFormRow(prisma, schoolId, enrollmentId), access);
 }
 
 /** Se usa dentro de la transición a PENDING_REVIEW para validar con los datos ya confirmados. */
@@ -403,6 +413,7 @@ export function parseEnrollmentFormPatch(body: unknown) {
     "medicationAllergyDetails",
     "vaccinationsComplete",
     "missingVaccines",
+    "emergencyMedicalNotes",
   ]);
   let vaccinationsComplete: boolean | null | undefined;
   if (medicalInput?.vaccinationsComplete === null) vaccinationsComplete = null;
@@ -421,6 +432,11 @@ export function parseEnrollmentFormPatch(body: unknown) {
         ),
         vaccinationsComplete,
         missingVaccines: optionalText(medicalInput.missingVaccines, "Las vacunas pendientes", 2000),
+        emergencyMedicalNotes: optionalText(
+          medicalInput.emergencyMedicalNotes,
+          "Las indicaciones en caso de emergencia",
+          2000,
+        ),
       })
     : undefined;
 
@@ -451,7 +467,11 @@ export async function saveEnrollmentForm(
   actorUserId: string,
   enrollmentId: string,
   patch: ReturnType<typeof parseEnrollmentFormPatch>,
+  access: FormAccess,
 ) {
+  if (patch.medical && !access.canReadMedical) {
+    throw Object.assign(new Error("No tiene permiso para registrar información médica"), { status: 403 });
+  }
   const updated = await prisma.$transaction(async (tx) => {
     const { row: current } = await findFormRow(tx, schoolId, enrollmentId);
     if (!editableStatuses.includes(current.status)) {
@@ -489,10 +509,11 @@ export async function saveEnrollmentForm(
       });
     }
     if (patch.medical) {
+      const medical = encryptMedicalFields(patch.medical);
       await tx.medicalProfile.upsert({
         where: { enrollmentId },
-        create: { enrollmentId, ...patch.medical },
-        update: patch.medical,
+        create: { enrollmentId, ...medical },
+        update: medical,
       });
     }
 
@@ -509,5 +530,5 @@ export async function saveEnrollmentForm(
 
     return findFormRow(tx, schoolId, enrollmentId);
   });
-  return publicForm(updated);
+  return publicForm(updated, access);
 }

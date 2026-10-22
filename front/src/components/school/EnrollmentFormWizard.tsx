@@ -51,6 +51,7 @@ const emptyMedical: NonNullable<EnrollmentFormData['medical']> = {
   medicationAllergyDetails: null,
   vaccinationsComplete: null,
   missingVaccines: null,
+  emergencyMedicalNotes: null,
 };
 const livesWithOptions: Array<[keyof typeof emptyHousehold, string]> = [
   ['livesWithMother', 'Madre'],
@@ -123,6 +124,7 @@ export function EnrollmentFormWizard({
   async function saveStep(current: WizardStep) {
     // Los responsables se guardan al instante desde su panel; no forman parte del PATCH.
     if (!form || !editable || current === 'review' || current === 'family') return true;
+    if (current === 'medical' && loaded?.medicalRestricted) return true;
     setBusy(true);
     setError('');
     setNotice('');
@@ -263,7 +265,13 @@ export function EnrollmentFormWizard({
               {step === 'household' ? (
                 <HouseholdStep form={form} update={(values) => updateSection('household', values)} />
               ) : null}
-              {step === 'medical' ? (
+              {step === 'medical' && loaded?.medicalRestricted ? (
+                <p className={styles.returned}>
+                  No tiene permiso para ver ni registrar información médica. Solicite a Secretaría o Dirección que
+                  complete este paso.
+                </p>
+              ) : null}
+              {step === 'medical' && !loaded?.medicalRestricted ? (
                 <MedicalStep form={form} update={(values) => updateSection('medical', values)} />
               ) : null}
               {step === 'signature' ? (
@@ -608,6 +616,15 @@ function MedicalStep({
           onChange={(missingVaccines) => update({ missingVaccines })}
         />
       ) : null}
+      <TextField
+        label="Indicaciones en caso de emergencia"
+        value={medical.emergencyMedicalNotes}
+        onChange={(emergencyMedicalNotes) => update({ emergencyMedicalNotes })}
+        full
+      />
+      <p className={`${styles.hint} ${modalStyles.full}`}>
+        Información confidencial: solo la ven Secretaría y Dirección, y los detalles se guardan cifrados.
+      </p>
     </div>
   );
 }

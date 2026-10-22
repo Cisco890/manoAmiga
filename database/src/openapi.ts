@@ -155,6 +155,14 @@ export const openApiDocument = {
         responses: { "200": { description: "Dirección guardada" }, "400": errorResponse, "401": errorResponse, "403": errorResponse, "404": errorResponse },
       },
     },
+    "/api/students/{id}/medical-profile": {
+      get: {
+        tags: ["Alumnos"], summary: "Perfil médico del alumno para emergencias", security: [{ bearerAuth: [] }],
+        description: "Requiere student.medical.read (hoy solo ADMIN; Secretaría y Dirección). Devuelve el perfil médico más reciente registrado en el paso Salud de una inscripción: tipo de sangre, enfermedades o alergias, alergias a medicamentos, vacunas e indicaciones de emergencia. Los textos libres se guardan cifrados con AES-256-GCM y se descifran solo en esta respuesta. Cada consulta se registra en auditoría (VIEW) sin copiar los datos.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        responses: { "200": { description: "profile y enrollment en data; ambos null si no hay perfil." }, "401": errorResponse, "403": errorResponse, "404": errorResponse },
+      },
+    },
     "/api/guardians/{id}/address": {
       put: {
         tags: ["Responsables"], summary: "Dirección de un responsable", security: [{ bearerAuth: [] }],

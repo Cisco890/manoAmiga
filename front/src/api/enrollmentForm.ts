@@ -53,6 +53,7 @@ export type EnrollmentFormData = {
     medicationAllergyDetails: string | null;
     vaccinationsComplete: boolean | null;
     missingVaccines: string | null;
+    emergencyMedicalNotes: string | null;
   } | null;
   signature: {
     signerGivenNames: string | null;
@@ -67,6 +68,8 @@ export type EnrollmentForm = {
   status: EnrollmentStatus;
   rejectionReason: string | null;
   editable: boolean;
+  /** Sin el permiso student.medical.read la API no envía la sección de salud (MA-29). */
+  medicalRestricted: boolean;
   steps: Array<{ id: FormStepId; label: string }>;
   form: EnrollmentFormData;
   missingFields: MissingField[];

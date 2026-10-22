@@ -234,6 +234,7 @@ Abra `http://localhost:5173` en el navegador e inicie sesión con una cuenta cre
 - Acciones de creación y administración.
 - Generación e impresión de documentos.
 - Acceso a Usuarios y Configuración.
+- Único rol con `student.medical.read`: ve y registra el perfil médico de los alumnos.
 
 ### Colaborador (`COLLABORATOR`)
 
@@ -241,6 +242,7 @@ Abra `http://localhost:5173` en el navegador e inicie sesión con una cuenta cre
 - Puede consultar las vistas de documentos.
 - No ve acciones para crear alumnos, inscripciones, padrinos o documentos.
 - No ve Usuarios ni Configuración.
+- No ve el perfil médico de los alumnos.
 - Tampoco puede ingresar a rutas administrativas escribiendo directamente la URL.
 
 ## Grados y fechas
@@ -374,6 +376,39 @@ asociarse al alumno y a sus responsables:
 
 Las pruebas están en `database/test/addresses.test.ts`.
 
+## Perfil médico del alumno
+
+La secretaría registra el perfil médico en el paso **Salud** del formulario de
+inscripción: tipo de sangre, enfermedades o alergias, alergias a medicamentos, vacunas
+pendientes e indicaciones en caso de emergencia. La ficha del alumno muestra el perfil
+más reciente con el botón **Ver perfil médico**.
+
+- **Quién lo ve:** solo quien tiene el permiso `student.medical.read`. Hoy lo tiene
+  `ADMIN`, que cubre a Secretaría y Dirección. `COLLABORATOR` no lo tiene, y tampoco
+  lo tendrán Padrinazgo ni Impresión cuando existan esos roles. Sin el permiso:
+  - `GET /api/students/:id/medical-profile` responde `403`;
+  - el formulario de inscripción llega con `medical: null` y `medicalRestricted: true`;
+  - un `PATCH` con la sección `medical` responde `403`.
+
+  La ficha resumida y la búsqueda nunca incluyen datos médicos.
+- **Cifrado:** los textos libres (detalle de enfermedades o alergias, alergias a
+  medicamentos, vacunas pendientes e indicaciones de emergencia) se guardan cifrados con
+  AES-256-GCM (`database/src/privacy/medical.ts`). Usan la clave `MEDICAL_ENCRYPTION_KEY`,
+  distinta de la del CUI. El tipo de sangre y las casillas Sí/No quedan en claro, protegidos
+  por el permiso. Los textos guardados antes del cifrado (sin el prefijo `enc:v1:`) se siguen
+  leyendo y se cifran al volver a guardarlos.
+- **Auditoría:** cada consulta del perfil se registra como `VIEW` (`MedicalProfile`) y cada
+  cambio como `UPDATE` de la inscripción, sin copiar los datos médicos.
+
+> En staging y producción defina `MEDICAL_ENCRYPTION_KEY` (32 bytes o más) solo en el
+> backend. Si se pierde, los textos médicos cifrados no se pueden recuperar.
+
+| Endpoint | Permiso | Resultado |
+| --- | --- | --- |
+| `GET /api/students/:id/medical-profile` | `student.medical.read` | Perfil médico más reciente, descifrado, y la inscripción de la que proviene. |
+
+Las pruebas están en `database/test/medical-profile.test.ts`.
+
 ## Inscripciones
 
 Flujo de estados: Borrador → Pendiente de revisión → Incompleta/Aprobada → Cerrada. Un cambio de grado en el mismo ciclo cierra la inscripción anterior y crea una nueva, para conservar el historial.
@@ -401,7 +436,7 @@ La secretaría completa cada inscripción en Borrador o Incompleta con el botón
 
 - `GET /api/enrollments/:id/form` devuelve los datos guardados y `missingFields`: la lista de faltantes, cada uno con su paso y una etiqueta en español. El indicador de pasos y el paso **Revisar y enviar** usan esa lista.
 - La API no permite pasar a Pendiente de revisión con campos faltantes: responde `422` con `missingFields`. La validación vive en `database/src/school/enrollmentForm.ts` (`missingEnrollmentFields`) y se ejecuta dentro de la misma transacción del cambio de estado.
-- Ver y editar el formulario requiere `enrollment.write`, porque incluye datos médicos. Solo se edita en Borrador o Incompleta.
+- Ver y editar el formulario requiere `enrollment.write`. La sección Salud además requiere `student.medical.read` (ver "Perfil médico del alumno"). Solo se edita en Borrador o Incompleta.
 - Pendiente para otra historia: perfil religioso y documento de identificación de las personas autorizadas, que debe guardarse cifrado.
 
 ### Aprobación, devolución y rechazo
