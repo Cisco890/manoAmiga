@@ -196,6 +196,7 @@ model Grade {
   name         String     @db.VarChar(100)
   level        GradeLevel
   displayOrder Int        @map("display_order")
+  studentCount Int?       @map("student_count")
   minAge       Int?       @map("min_age")
   maxAge       Int?       @map("max_age")
   active       Boolean    @default(true)
@@ -212,16 +213,18 @@ model Grade {
 }
 
 model ClassSection {
-  id              String   @id @default(uuid()) @db.Uuid
-  academicCycleId String   @map("academic_cycle_id") @db.Uuid
-  gradeId         String   @map("grade_id") @db.Uuid
-  name            String   @db.VarChar(30)
-  teacherName     String?  @map("teacher_name") @db.VarChar(160)
-  room            String?  @db.VarChar(50)
-  capacity        Int?
-  active          Boolean  @default(true)
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                   String  @id @default(uuid()) @db.Uuid
+  academicCycleId      String  @map("academic_cycle_id") @db.Uuid
+  gradeId              String  @map("grade_id") @db.Uuid
+  name                 String  @db.VarChar(30)
+  teacherGivenNames    String? @map("teacher_given_names") @db.VarChar(120)
+  teacherFirstSurname  String? @map("teacher_first_surname") @db.VarChar(80)
+  teacherSecondSurname String? @map("teacher_second_surname") @db.VarChar(80)
+  room                 String? @db.VarChar(50)
+  capacity             Int?
+  active               Boolean @default(true)
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   academicCycle AcademicCycle @relation(fields: [academicCycleId], references: [id], onDelete: Restrict)
   grade         Grade         @relation(fields: [gradeId], references: [id], onDelete: Restrict)
@@ -229,6 +232,7 @@ model ClassSection {
 
   @@unique([academicCycleId, gradeId, name])
   @@index([academicCycleId, gradeId])
+  @@index([teacherFirstSurname, teacherSecondSurname, teacherGivenNames])
   @@map("class_sections")
 }
 
@@ -283,6 +287,7 @@ model Student {
   photos        StudentPhoto[]
   sponsorships  Sponsorship[]
   documents     GeneratedDocument[]
+  authorizedPickups AuthorizedPickup[]
 
   @@unique([schoolId, studentCode])
   @@index([schoolId, status])
@@ -366,15 +371,19 @@ model Enrollment {
   academicCycleId            String           @map("academic_cycle_id") @db.Uuid
   gradeId                    String           @map("grade_id") @db.Uuid
   classSectionId             String?          @map("class_section_id") @db.Uuid
-  applicationType            ApplicationType  @map("application_type")
-  requestDate                DateTime         @default(now()) @map("request_date") @db.Date
-  status                     EnrollmentStatus @default(DRAFT)
-  messageContactName         String?          @map("message_contact_name") @db.VarChar(160)
-  messageContactPhone        String?          @map("message_contact_phone") @db.VarChar(30)
-  messageContactRelationship String?          @map("message_contact_relationship") @db.VarChar(80)
-  mayLeaveAlone              Boolean          @default(false) @map("may_leave_alone")
-  signerName                 String?          @map("signer_name") @db.VarChar(160)
-  signerRelationship         String?          @map("signer_relationship") @db.VarChar(80)
+  applicationType                 ApplicationType  @map("application_type")
+  requestDate                     DateTime         @default(now()) @map("request_date") @db.Date
+  status                          EnrollmentStatus @default(DRAFT)
+  messageContactGivenNames        String?          @map("message_contact_given_names") @db.VarChar(120)
+  messageContactFirstSurname      String?          @map("message_contact_first_surname") @db.VarChar(80)
+  messageContactSecondSurname     String?          @map("message_contact_second_surname") @db.VarChar(80)
+  messageContactPhone             String?          @map("message_contact_phone") @db.VarChar(30)
+  messageContactRelationship      String?          @map("message_contact_relationship") @db.VarChar(80)
+  mayLeaveAlone                   Boolean          @default(false) @map("may_leave_alone")
+  signerGivenNames                String?          @map("signer_given_names") @db.VarChar(120)
+  signerFirstSurname              String?          @map("signer_first_surname") @db.VarChar(80)
+  signerSecondSurname             String?          @map("signer_second_surname") @db.VarChar(80)
+  signerRelationship              String?          @map("signer_relationship") @db.VarChar(80)
   signedAt                   DateTime?        @map("signed_at") @db.Timestamptz(3)
   approvedAt                 DateTime?        @map("approved_at") @db.Timestamptz(3)
   approvedByUserId           String?          @map("approved_by_user_id") @db.Uuid
@@ -399,6 +408,8 @@ model Enrollment {
   @@index([studentId, academicCycleId, status])
   @@index([academicCycleId, gradeId, status])
   @@index([classSectionId])
+  @@index([messageContactFirstSurname, messageContactSecondSurname, messageContactGivenNames])
+  @@index([signerFirstSurname, signerSecondSurname, signerGivenNames])
   @@map("enrollments")
 }
 
@@ -425,18 +436,21 @@ model HouseholdProfile {
 }
 
 model StudentSibling {
-  id                   String   @id @default(uuid()) @db.Uuid
-  householdProfileId   String   @map("household_profile_id") @db.Uuid
-  name                 String?  @db.VarChar(160)
-  sex                  Sex      @default(NOT_SPECIFIED)
-  ageAtRegistration    Int?     @map("age_at_registration")
+  id                   String  @id @default(uuid()) @db.Uuid
+  householdProfileId   String  @map("household_profile_id") @db.Uuid
+  givenNames           String? @map("given_names") @db.VarChar(120)
+  firstSurname         String? @map("first_surname") @db.VarChar(80)
+  secondSurname        String? @map("second_surname") @db.VarChar(80)
+  sex                  Sex     @default(NOT_SPECIFIED)
+  ageAtRegistration    Int?    @map("age_at_registration")
   enrolledAtThisSchool Boolean? @map("enrolled_at_this_school")
-  notes                String?  @db.Text
+  notes                String? @db.Text
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   householdProfile HouseholdProfile @relation(fields: [householdProfileId], references: [id], onDelete: Cascade)
 
   @@index([householdProfileId])
+  @@index([firstSurname, secondSurname, givenNames])
   @@map("student_siblings")
 }
 
@@ -481,8 +495,11 @@ model ReligiousProfile {
 
 model AuthorizedPickup {
   id                  String   @id @default(uuid()) @db.Uuid
-  enrollmentId        String   @map("enrollment_id") @db.Uuid
-  fullName            String   @map("full_name") @db.VarChar(160)
+  enrollmentId        String?  @map("enrollment_id") @db.Uuid
+  studentId           String?  @map("student_id") @db.Uuid
+  givenNames          String   @map("given_names") @db.VarChar(120)
+  firstSurname        String   @map("first_surname") @db.VarChar(80)
+  secondSurname       String?  @map("second_surname") @db.VarChar(80)
   relationship        String   @db.VarChar(80)
   identifierEncrypted String?  @map("identifier_encrypted") @db.Text
   identifierHash      String?  @map("identifier_hash") @db.VarChar(64)
@@ -492,10 +509,14 @@ model AuthorizedPickup {
   createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  enrollment Enrollment? @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  student    Student?    @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([enrollmentId, sortOrder])
+  @@unique([studentId, sortOrder])
+  @@index([studentId, active])
   @@index([enrollmentId, active])
+  @@index([firstSurname, secondSurname, givenNames])
   @@map("authorized_pickups")
 }
 
@@ -542,6 +563,7 @@ model Sponsor {
 
   @@index([searchName])
   @@index([active])
+  @@index([firstSurname, secondSurname, givenNames])
   @@map("sponsors")
 }
 
