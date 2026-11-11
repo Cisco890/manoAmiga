@@ -56,6 +56,16 @@ import {
   updateGuardianLink,
 } from "./guardians";
 import { getStudentMedicalProfile } from "./medicalProfile";
+import {
+  createSponsor,
+  deactivateSponsor,
+  findSponsorMatches,
+  getSponsor,
+  listSponsors,
+  parseMatchQuery,
+  parseSponsorInput,
+  updateSponsor,
+} from "./sponsors";
 import { getStudentPhoto, getStudentSummary } from "./studentSummary";
 import { downloadPrivateObject } from "../storage/supabase-storage";
 
@@ -498,6 +508,70 @@ export async function handleSchoolRoutes(
       );
       sendJson(request, response, 200, { data });
       return true;
+    }
+
+    // --- Padrinos (MA-33) ---
+    if (request.method === "GET" && url.pathname === "/api/sponsors") {
+      const principal = await authenticatedPrincipal(request);
+      requirePermission(principal, "sponsor.read");
+      const { page, limit } = pagination(url);
+      const activeParam = url.searchParams.get("active");
+      if (activeParam && activeParam !== "true" && activeParam !== "false") {
+        throw new DomainError(400, "active debe ser true o false");
+      }
+      const result = await wrapDomain(() =>
+        listSponsors(principal.schoolId, {
+          page,
+          limit,
+          q: searchQuery(url),
+          active: activeParam ? activeParam === "true" : undefined,
+        }),
+      );
+      sendJson(request, response, 200, result);
+      return true;
+    }
+
+    if (request.method === "GET" && url.pathname === "/api/sponsors/matches") {
+      const principal = await authenticatedPrincipal(request);
+      requirePermission(principal, "sponsor.read");
+      const data = await wrapDomain(async () => findSponsorMatches(principal.schoolId, parseMatchQuery(url.searchParams)));
+      sendJson(request, response, 200, { data });
+      return true;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/sponsors") {
+      const principal = await authenticatedPrincipal(request);
+      requirePermission(principal, "sponsor.write");
+      const body = await readJson(request);
+      const data = await wrapDomain(async () => createSponsor(principal.schoolId, principal.id, parseSponsorInput(body)));
+      sendJson(request, response, 201, { data });
+      return true;
+    }
+
+    const sponsorPath = pathId(url.pathname, "/api/sponsors/");
+    if (sponsorPath && sponsorPath.tail.length === 0) {
+      const principal = await authenticatedPrincipal(request);
+      if (request.method === "GET") {
+        requirePermission(principal, "sponsor.read");
+        const data = await wrapDomain(() => getSponsor(principal.schoolId, sponsorPath.id));
+        sendJson(request, response, 200, { data });
+        return true;
+      }
+      if (request.method === "PATCH") {
+        requirePermission(principal, "sponsor.write");
+        const body = await readJson(request);
+        const data = await wrapDomain(async () =>
+          updateSponsor(principal.schoolId, principal.id, sponsorPath.id, parseSponsorInput(body, true)),
+        );
+        sendJson(request, response, 200, { data });
+        return true;
+      }
+      if (request.method === "DELETE") {
+        requirePermission(principal, "sponsor.write");
+        const data = await wrapDomain(() => deactivateSponsor(principal.schoolId, principal.id, sponsorPath.id));
+        sendJson(request, response, 200, { data });
+        return true;
+      }
     }
 
     if (studentPath && studentPath.tail.length === 0 && request.method === "GET") {

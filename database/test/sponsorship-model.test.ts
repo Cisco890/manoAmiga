@@ -53,9 +53,9 @@ async function createStudent(schoolId: string) {
   return student.id;
 }
 
-async function createSponsor() {
+async function createSponsor(schoolId: string) {
   const sponsor = await prisma.sponsor.create({
-    data: { givenNames: "Padrino", firstSurname: `Modelo ${sponsorIds.length}`, searchName: `Padrino Modelo ${sponsorIds.length}` },
+    data: { schoolId, givenNames: "Padrino", firstSurname: `Modelo ${sponsorIds.length}`, searchName: `Padrino Modelo ${sponsorIds.length}` },
     select: { id: true },
   });
   sponsorIds.push(sponsor.id);
@@ -87,7 +87,7 @@ after(async () => {
 test("la base permite que un padrino apoye a varios alumnos y un alumno tenga varios padrinos", async () => {
   const schoolId = await createSchool();
   const [firstStudent, secondStudent] = [await createStudent(schoolId), await createStudent(schoolId)];
-  const [firstSponsor, secondSponsor] = [await createSponsor(), await createSponsor()];
+  const [firstSponsor, secondSponsor] = [await createSponsor(schoolId), await createSponsor(schoolId)];
 
   // Inserciones directas: la base no impone ningún límite de cardinalidad.
   await sponsorship(firstSponsor, firstStudent);
@@ -109,7 +109,7 @@ test("la base permite que un padrino apoye a varios alumnos y un alumno tenga va
 test("sin ajuste, la regla de negocio permite un solo padrinazgo abierto por alumno", async () => {
   const schoolId = await createSchool();
   const studentId = await createStudent(schoolId);
-  const [firstSponsor, secondSponsor] = [await createSponsor(), await createSponsor()];
+  const [firstSponsor, secondSponsor] = [await createSponsor(schoolId), await createSponsor(schoolId)];
 
   await canReceive(schoolId, studentId);
   await sponsorship(firstSponsor, studentId, "PENDING");
@@ -133,9 +133,9 @@ test("el cupo se amplía con sponsorship.max_open_per_student sin cambiar el esq
   const schoolId = await createSchool(2);
   const studentId = await createStudent(schoolId);
   await canReceive(schoolId, studentId);
-  await sponsorship(await createSponsor(), studentId);
+  await sponsorship(await createSponsor(schoolId), studentId);
   await canReceive(schoolId, studentId);
-  await sponsorship(await createSponsor(), studentId);
+  await sponsorship(await createSponsor(schoolId), studentId);
   await assert.rejects(canReceive(schoolId, studentId), /máximo de 2 padrinos/);
 });
 
@@ -158,7 +158,7 @@ test("el cupo solo aplica a alumnos del mismo colegio", async () => {
 test("un padrino no puede tener dos padrinazgos abiertos con el mismo alumno", async () => {
   const schoolId = await createSchool(5);
   const studentId = await createStudent(schoolId);
-  const sponsorId = await createSponsor();
+  const sponsorId = await createSponsor(schoolId);
   await assertNoOpenSponsorshipForPair(prisma, sponsorId, studentId);
   await sponsorship(sponsorId, studentId, "PAUSED");
   await rejectsWith(assertNoOpenSponsorshipForPair(prisma, sponsorId, studentId), 409);

@@ -22,6 +22,7 @@ export const openApiDocument = {
     { name: "Usuarios" },
     { name: "Alumnos" },
     { name: "Responsables" },
+    { name: "Padrinos" },
   ],
   paths: {
     "/api/students": {
@@ -173,6 +174,62 @@ export const openApiDocument = {
           { type: "object", required: ["address"], additionalProperties: false, properties: { address: { oneOf: [{ $ref: "#/components/schemas/AddressInput" }, { type: "null" }] } } },
         ] } } } },
         responses: { "200": { description: "Dirección del responsable en data.address" }, "400": errorResponse, "401": errorResponse, "403": errorResponse, "404": errorResponse, "409": errorResponse },
+      },
+    },
+    "/api/sponsors": {
+      get: {
+        tags: ["Padrinos"], summary: "Listar y buscar padrinos del colegio", security: [{ bearerAuth: [] }],
+        description: "Requiere sponsor.read. q busca por nombre (palabras en cualquier orden), correo o teléfono. active=true|false filtra por estado; sin active devuelve todos. Cada padrino incluye openSponsorships: sus padrinazgos pendientes, activos o pausados.",
+        parameters: [
+          { name: "q", in: "query", schema: { type: "string", maxLength: 200 } },
+          { name: "active", in: "query", schema: { type: "string", enum: ["true", "false"] } },
+          { name: "page", in: "query", schema: { type: "integer", minimum: 1, default: 1 } },
+          { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 100, default: 20 } },
+        ],
+        responses: { "200": { description: "Padrinos en data y pagination" }, "400": errorResponse, "401": errorResponse, "403": errorResponse },
+      },
+      post: {
+        tags: ["Padrinos"], summary: "Registrar un padrino", security: [{ bearerAuth: [] }],
+        description: "Requiere sponsor.write. Consulte antes /api/sponsors/matches para no duplicar registros. Un padrino puede existir sin padrinazgos.",
+        requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/SponsorInput" } } } },
+        responses: { "201": { description: "Padrino creado (detalle en data)" }, "400": errorResponse, "401": errorResponse, "403": errorResponse },
+      },
+    },
+    "/api/sponsors/matches": {
+      get: {
+        tags: ["Padrinos"], summary: "Sugerir padrinos existentes antes de crear uno", security: [{ bearerAuth: [] }],
+        description: "Requiere sponsor.read. Indique al menos un criterio. Coincide por nombre (todas las palabras o similitud), correo exacto sin distinguir mayúsculas, o teléfono (últimos 8 dígitos, sin importar guiones, espacios o el prefijo +502). Devuelve hasta 10 padrinos, incluidos los inactivos, con reasons (name, email o phone) y openSponsorships. excludeId omite al padrino que se está editando.",
+        parameters: [
+          { name: "name", in: "query", schema: { type: "string", minLength: 2, maxLength: 200 } },
+          { name: "email", in: "query", schema: { type: "string", maxLength: 254 } },
+          { name: "phone", in: "query", schema: { type: "string", maxLength: 30 } },
+          { name: "excludeId", in: "query", schema: { type: "string", format: "uuid" } },
+        ],
+        responses: { "200": { description: "Posibles coincidencias en data, primero las de correo o teléfono" }, "400": errorResponse, "401": errorResponse, "403": errorResponse },
+      },
+    },
+    "/api/sponsors/{id}": {
+      get: {
+        tags: ["Padrinos"], summary: "Detalle del padrino", security: [{ bearerAuth: [] }],
+        description: "Requiere sponsor.read. Incluye sponsorships: todos sus padrinazgos (vigentes e históricos) con el alumno.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        responses: { "200": { description: "Padrino en data" }, "401": errorResponse, "403": errorResponse, "404": errorResponse },
+      },
+      patch: {
+        tags: ["Padrinos"], summary: "Editar un padrino", security: [{ bearerAuth: [] }],
+        description: "Requiere sponsor.write. Todos los campos son opcionales; null borra un campo opcional. active=true reactiva a un padrino desactivado.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        requestBody: { required: true, content: { "application/json": { schema: { allOf: [
+          { $ref: "#/components/schemas/SponsorInput" },
+          { type: "object", properties: { active: { type: "boolean" } } },
+        ] } } } },
+        responses: { "200": { description: "Padrino actualizado" }, "400": errorResponse, "401": errorResponse, "403": errorResponse, "404": errorResponse, "409": errorResponse },
+      },
+      delete: {
+        tags: ["Padrinos"], summary: "Desactivar un padrino", security: [{ bearerAuth: [] }],
+        description: "Requiere sponsor.write. No borra el registro: lo marca como inactivo y conserva su historial. Responde 409 si tiene padrinazgos pendientes, activos o pausados.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        responses: { "200": { description: "Padrino desactivado" }, "401": errorResponse, "403": errorResponse, "404": errorResponse, "409": errorResponse },
       },
     },
     "/api/health": {
@@ -432,6 +489,21 @@ export const openApiDocument = {
           occupation: { type: ["string", "null"], maxLength: 120 },
           workplaceName: { type: ["string", "null"], maxLength: 180 },
           workplacePhone: { type: ["string", "null"], maxLength: 30 },
+        },
+      },
+      SponsorInput: {
+        type: "object", additionalProperties: false,
+        description: "Datos del padrino. INDIVIDUAL exige givenNames y firstSurname; ORGANIZATION exige organizationName (los nombres son de la persona de contacto). No incluye datos fiscales.",
+        properties: {
+          type: { type: "string", enum: ["INDIVIDUAL", "ORGANIZATION"], default: "INDIVIDUAL" },
+          givenNames: { type: ["string", "null"], maxLength: 120 },
+          firstSurname: { type: ["string", "null"], maxLength: 80 },
+          secondSurname: { type: ["string", "null"], maxLength: 80 },
+          organizationName: { type: ["string", "null"], maxLength: 200 },
+          birthday: { type: ["string", "null"], format: "date" },
+          email: { type: ["string", "null"], format: "email", maxLength: 254, description: "Se guarda en minúsculas" },
+          phone: { type: ["string", "null"], maxLength: 30, description: "Al menos 7 dígitos; se conserva el formato escrito" },
+          notes: { type: ["string", "null"], maxLength: 2000 },
         },
       },
       Error: {

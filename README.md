@@ -432,6 +432,43 @@ servicio (`database/src/school/sponsorships.ts`), no una restricción del esquem
 
 Las pruebas están en `database/test/sponsorship-model.test.ts`.
 
+### Registro de padrinos y sugerencia de duplicados
+
+En **Padrinos**, la secretaría busca por nombre, correo o teléfono y registra padrinos nuevos.
+Un padrino puede ser una persona o una organización (con una persona de contacto opcional) y
+puede existir **sin padrinazgos**.
+
+Mientras se escribe en el formulario de un padrino nuevo, el CRM consulta
+`GET /api/sponsors/matches` y muestra **posibles coincidencias**, con el motivo y los alumnos que
+ese padrino ya apoya:
+
+- **Nombre:** todas las palabras en cualquier orden, o una similitud alta (tolera tildes o letras
+  cambiadas; usa el índice trigram `sponsors_search_name_trgm`).
+- **Correo:** igual, sin distinguir mayúsculas. El correo se guarda en minúsculas.
+- **Teléfono:** los últimos 8 dígitos, sin importar espacios, guiones o el prefijo `+502`.
+
+Si hay coincidencias, el botón cambia a **Crear de todas formas**. Antes de crear, el formulario
+consulta otra vez por si la sugerencia todavía no había llegado. Los padrinos inactivos también
+se sugieren, para reactivarlos en lugar de duplicarlos.
+
+Desactivar un padrino no lo borra: conserva su historial y se puede reactivar. No se puede
+desactivar mientras tenga padrinazgos pendientes, activos o pausados.
+
+La migración `20261111182825_sponsor_school` agrega `school_id` a `sponsors`, para aislar los
+padrinos de cada colegio aunque no tengan alumnos. Los padrinos existentes toman el colegio de su
+primer alumno o, si no tienen alumnos, el primer colegio registrado.
+
+| Endpoint | Permiso | Resultado |
+| --- | --- | --- |
+| `GET /api/sponsors?q&active&page&limit` | `sponsor.read` | Listado paginado con los padrinazgos vigentes de cada padrino. |
+| `GET /api/sponsors/matches?name&email&phone&excludeId` | `sponsor.read` | Hasta 10 posibles duplicados con `reasons`. |
+| `GET /api/sponsors/:id` | `sponsor.read` | Detalle con todos sus padrinazgos. |
+| `POST /api/sponsors` | `sponsor.write` | Registra un padrino. |
+| `PATCH /api/sponsors/:id` | `sponsor.write` | Edita o reactiva (`active: true`). |
+| `DELETE /api/sponsors/:id` | `sponsor.write` | Desactiva (409 si tiene padrinazgos vigentes). |
+
+Las pruebas están en `database/test/sponsors.test.ts` y `front/src/components/sponsors/sponsors.test.tsx`.
+
 ## Inscripciones
 
 Flujo de estados: Borrador → Pendiente de revisión → Incompleta/Aprobada → Cerrada. Un cambio de grado en el mismo ciclo cierra la inscripción anterior y crea una nueva, para conservar el historial.

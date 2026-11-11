@@ -40,7 +40,7 @@ before(async () => {
     studentLinks: { create: { studentId, relationship: "MOTHER", primaryContact: true, legalRepresentative: true } },
   } })).id;
   sponsorId = (await prisma.sponsor.create({ data: {
-    givenNames: sponsorName, firstSurname: "Solidario", searchName: `${sponsorName} Solidario`,
+    schoolId, givenNames: sponsorName, firstSurname: "Solidario", searchName: `${sponsorName} Solidario`,
     sponsorships: { create: { studentId, status: "ACTIVE", startDate: new Date("2020-01-01") } },
   } })).id;
   await prisma.studentPhoto.create({ data: { studentId, storagePath: "alumnos/foto privada.png", fileName: "foto.png", mimeType: "image/png" } });

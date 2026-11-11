@@ -7,6 +7,27 @@ import type {
   StudentStatus,
 } from '../api/school.ts';
 import type { GuardianRelationship } from '../api/guardians.ts';
+import type { SponsorMatchReason, SponsorshipStatus, SponsorType } from '../api/sponsors.ts';
+
+export const sponsorTypeLabels: Record<SponsorType, string> = {
+  INDIVIDUAL: 'Persona',
+  ORGANIZATION: 'Organización',
+};
+
+/** Estados del padrinazgo (MA-36 define las transiciones entre ellos). */
+export const sponsorshipStatusLabels: Record<SponsorshipStatus, string> = {
+  PENDING: 'Pendiente',
+  ACTIVE: 'Activo',
+  PAUSED: 'Pausado',
+  ENDED: 'Finalizado',
+  CANCELLED: 'Cancelado',
+};
+
+export const sponsorMatchReasonLabels: Record<SponsorMatchReason, string> = {
+  name: 'nombre parecido',
+  email: 'mismo correo',
+  phone: 'mismo teléfono',
+};
 
 export const guardianRelationshipLabels: Record<GuardianRelationship, string> = {
   MOTHER: 'Madre',

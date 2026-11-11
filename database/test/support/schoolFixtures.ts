@@ -217,6 +217,7 @@ export async function createSchoolTestContext(label: string) {
     const firstSurname = overrides.firstSurname ?? `Prueba ${sponsorIds.length}-${suffix}`;
     const sponsor = await prisma.sponsor.create({
       data: {
+        schoolId: school.id,
         type: "INDIVIDUAL",
         givenNames,
         firstSurname,
