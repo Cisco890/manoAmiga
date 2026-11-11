@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import bcrypt from "bcryptjs";
-import type { EnrollmentStatus } from "../../src/generated/prisma/client";
+import type { EnrollmentStatus, SponsorshipStatus } from "../../src/generated/prisma/client";
 import { prisma } from "../../src/prisma";
 
 process.env.JWT_ACCESS_SECRET ??= "secreto-de-integracion-con-mas-de-32-bytes";
@@ -67,6 +67,7 @@ export async function createSchoolTestContext(label: string) {
   const cycleIds: string[] = [];
   const guardianIds: string[] = [];
   const addressIds: string[] = [];
+  const sponsorIds: string[] = [];
 
   const [school, adminRole, collaboratorRole] = await Promise.all([
     prisma.school.findUniqueOrThrow({ where: { code: "MANO_AMIGA" }, select: { id: true } }),
@@ -205,8 +206,45 @@ export async function createSchoolTestContext(label: string) {
     return guardian;
   }
 
+  /** Registra un padrino creado por la API para que `cleanup()` lo elimine. */
+  function trackSponsor(id: string) {
+    sponsorIds.push(id);
+  }
+
+  /** Padrino desechable (persona individual). `overrides` reemplaza cualquier campo. */
+  async function createSponsor(overrides: { givenNames?: string; firstSurname?: string; email?: string | null; phone?: string | null } = {}) {
+    const givenNames = overrides.givenNames ?? "Padrino";
+    const firstSurname = overrides.firstSurname ?? `Prueba ${sponsorIds.length}-${suffix}`;
+    const sponsor = await prisma.sponsor.create({
+      data: {
+        type: "INDIVIDUAL",
+        givenNames,
+        firstSurname,
+        searchName: `${givenNames} ${firstSurname}`,
+        email: overrides.email ?? null,
+        phone: overrides.phone ?? null,
+      },
+      select: { id: true },
+    });
+    sponsorIds.push(sponsor.id);
+    return sponsor;
+  }
+
+  /** Padrinazgo directo en la base, sin pasar por las reglas del servicio. */
+  function createSponsorshipRow(sponsorId: string, studentId: string, status: SponsorshipStatus = "ACTIVE") {
+    return prisma.sponsorship.create({
+      data: { sponsorId, studentId, status, startDate: new Date("2026-01-15") },
+      select: { id: true },
+    });
+  }
+
   async function cleanup() {
     await new Promise<void>((resolve) => server.close(() => resolve()));
+    const sponsorshipWhere = { OR: [{ studentId: { in: studentIds } }, { sponsorId: { in: sponsorIds } }] };
+    await prisma.donationCommitment.deleteMany({ where: { sponsorship: sponsorshipWhere } });
+    await prisma.generatedDocument.deleteMany({ where: { sponsorship: sponsorshipWhere } });
+    await prisma.sponsorship.deleteMany({ where: sponsorshipWhere });
+    await prisma.sponsor.deleteMany({ where: { id: { in: sponsorIds } } });
     await prisma.enrollment.deleteMany({ where: { studentId: { in: studentIds } } });
     await prisma.student.deleteMany({ where: { id: { in: studentIds } } });
     await prisma.guardian.deleteMany({ where: { id: { in: guardianIds } } });
@@ -226,6 +264,9 @@ export async function createSchoolTestContext(label: string) {
     createStudent,
     createEnrollmentRow,
     completeStudentRecord,
+    createSponsor,
+    createSponsorshipRow,
+    trackSponsor,
     cleanup,
   };
 }

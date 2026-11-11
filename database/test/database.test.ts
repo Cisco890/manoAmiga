@@ -39,7 +39,7 @@ test("el seed crea los catálogos mínimos sin duplicados", async () => {
   assert.ok(Number(counts.sections) >= 12);
   assert.equal(Number(counts.roles), 2);
   assert.equal(Number(counts.permissions), 17);
-  assert.equal(Number(counts.settings), 3);
+  assert.equal(Number(counts.settings), 4);
 });
 
 test("la migración instaló todas las restricciones CHECK", async () => {

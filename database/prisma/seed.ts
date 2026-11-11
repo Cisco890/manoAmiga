@@ -123,6 +123,11 @@ async function main() {
   const settings = [
     ["authorized_pickups.max", 3, "Cantidad máxima de autorizados activos por inscripción"],
     ["currency.default", "GTQ", "Moneda predeterminada para compromisos de donación"],
+    [
+      "sponsorship.max_open_per_student",
+      1,
+      "Cantidad máxima de padrinazgos abiertos (pendientes, activos o pausados) por alumno",
+    ],
     ["student.code.format", "MA-{YEAR}-{SEQUENCE:5}", "Formato del código único de alumno"],
   ] as const;
 

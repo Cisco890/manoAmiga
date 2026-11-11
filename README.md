@@ -409,6 +409,29 @@ más reciente con el botón **Ver perfil médico**.
 
 Las pruebas están en `database/test/medical-profile.test.ts`.
 
+## Padrinos y padrinazgos
+
+### Modelo de padrinazgo
+
+La tabla `sponsorships` es una relación **muchos a muchos** entre `sponsors` y `students`. La
+base de datos permite que un padrino apoye a varios alumnos y que un alumno tenga varios
+padrinos: no hay ningún índice único que lo limite. Cada padrinazgo guarda su fecha de inicio,
+su fecha de finalización y su estado (`PENDING`, `ACTIVE`, `PAUSED`, `ENDED` o `CANCELLED`).
+
+Hoy el colegio trabaja con **un padrino por alumno**. Esa política es una regla de negocio del
+servicio (`database/src/school/sponsorships.ts`), no una restricción del esquema:
+
+- Un padrinazgo está **abierto** mientras esté pendiente, activo o pausado. Al finalizarlo o
+  cancelarlo, el alumno queda libre para recibir otro padrino.
+- El cupo se lee del ajuste `sponsorship.max_open_per_student` de `system_settings` (el seed lo
+  deja en `1`). Si el colegio amplía la política, basta con cambiar ese valor: no hace falta una
+  migración. Un valor ausente o inválido usa la política por defecto (1).
+- Un mismo padrino no puede tener dos padrinazgos abiertos con el mismo alumno.
+- La verificación bloquea la fila del alumno dentro de la transacción, para que dos asignaciones
+  simultáneas no superen el cupo.
+
+Las pruebas están en `database/test/sponsorship-model.test.ts`.
+
 ## Inscripciones
 
 Flujo de estados: Borrador → Pendiente de revisión → Incompleta/Aprobada → Cerrada. Un cambio de grado en el mismo ciclo cierra la inscripción anterior y crea una nueva, para conservar el historial.
