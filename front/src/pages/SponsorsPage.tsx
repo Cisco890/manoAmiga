@@ -6,7 +6,8 @@ import { SponsorDetailModal } from '../components/sponsors/SponsorDetailModal.ts
 import { SponsorFormModal } from '../components/sponsors/SponsorFormModal.tsx';
 import { PageHeader } from '../components/ui/PageHeader.tsx';
 import { getRouteByPath } from '../config/navigation.ts';
-import { sponsorTypeLabels, sponsorshipStatusLabels } from '../lib/labels.ts';
+import { donationFrequencyLabels, sponsorTypeLabels, sponsorshipStatusLabels } from '../lib/labels.ts';
+import { formatMoney } from '../lib/money.ts';
 import pageStyles from './pageLayout.module.css';
 import styles from './schoolShared.module.css';
 
@@ -102,7 +103,7 @@ export function SponsorsPage() {
           <div className={styles.tableWrap}>
             <table className={styles.table}>
               <thead>
-                <tr><th>Padrino</th><th>Contacto</th><th>Alumnos apadrinados</th><th>Estado</th><th>Acciones</th></tr>
+                <tr><th>Padrino</th><th>Contacto</th><th>Alumnos apadrinados</th><th>Compromiso autorizado</th><th>Estado</th><th>Acciones</th></tr>
               </thead>
               <tbody>
                 {sponsors.map((sponsor) => (
@@ -130,6 +131,16 @@ export function SponsorsPage() {
                             </div>
                           ))
                         : 'Sin alumnos'}
+                    </td>
+                    <td>
+                      {sponsor.openSponsorships.some((sponsorship) => sponsorship.commitment)
+                        ? sponsor.openSponsorships.map((sponsorship) => sponsorship.commitment ? (
+                            <div key={sponsorship.id}>
+                              {formatMoney(sponsorship.commitment.authorizedAmount, sponsorship.commitment.currency)}{' '}
+                              <span className={styles.reviewNote}>{donationFrequencyLabels[sponsorship.commitment.frequency]}</span>
+                            </div>
+                          ) : null)
+                        : '—'}
                     </td>
                     <td>
                       <span className={`${styles.badge} ${sponsor.active ? styles.badgeActive : styles.badgeMuted}`}>

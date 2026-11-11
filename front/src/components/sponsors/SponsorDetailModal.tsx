@@ -3,7 +3,8 @@ import { X } from 'lucide-react';
 import { deactivateSponsor, getSponsor, updateSponsor, type SponsorDetail } from '../../api/sponsors.ts';
 import { useAuth } from '../../auth/useAuth.ts';
 import { formatDate } from '../../lib/dates.ts';
-import { sponsorTypeLabels, sponsorshipStatusLabels } from '../../lib/labels.ts';
+import { donationFrequencyLabels, sponsorTypeLabels, sponsorshipStatusLabels } from '../../lib/labels.ts';
+import { formatMoney } from '../../lib/money.ts';
 import modalStyles from '../school/FormModal.module.css';
 import shared from '../../pages/schoolShared.module.css';
 import { SponsorFormModal } from './SponsorFormModal.tsx';
@@ -119,13 +120,18 @@ export function SponsorDetailModal({ sponsorId, onClose, onChanged }: Props) {
                   <div className={shared.tableWrap}>
                     <table className={shared.table}>
                       <thead>
-                        <tr><th>Alumno</th><th>Estado</th><th>Inicio</th><th>Fin</th></tr>
+                        <tr><th>Alumno</th><th>Estado</th><th>Compromiso autorizado</th><th>Inicio</th><th>Fin</th></tr>
                       </thead>
                       <tbody>
                         {sponsor.sponsorships.map((sponsorship) => (
                           <tr key={sponsorship.id}>
                             <td>{sponsorship.student.fullName}<div className={styles.muted}>{sponsorship.student.studentCode}</div></td>
                             <td><span className={shared.badge}>{sponsorshipStatusLabels[sponsorship.status]}</span></td>
+                            <td>
+                              {sponsorship.commitment
+                                ? <>{formatMoney(sponsorship.commitment.authorizedAmount, sponsorship.commitment.currency)}<div className={styles.muted}>{donationFrequencyLabels[sponsorship.commitment.frequency]}</div></>
+                                : '—'}
+                            </td>
                             <td>{formatDate(sponsorship.startDate)}</td>
                             <td>{sponsorship.endDate ? formatDate(sponsorship.endDate) : '—'}</td>
                           </tr>

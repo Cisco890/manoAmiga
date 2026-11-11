@@ -44,7 +44,7 @@ export const openApiDocument = {
       get: {
         tags: ["Alumnos"], summary: "Ficha resumida del alumno", security: [{ bearerAuth: [] }],
         parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
-        description: "Requiere student.read. Incluye student, photo, address (dirección del alumno con formatted), currentEnrollment, responsible, guardians, sponsors, authorizedPickups, documents e history. Cada inscripción histórica conserva grado, ciclo, estado, documentos y autorizados. La inscripción actual es la abierta más reciente en un ciclo no cerrado. No incluye datos médicos, documentos de identidad sin enmascarar ni rutas privadas de almacenamiento.",
+        description: "Requiere student.read. Incluye student, photo, address (dirección del alumno con formatted), currentEnrollment, responsible, guardians, sponsors (padrinazgos pendientes, activos o pausados, con status y commitment.authorizedAmount: monto autorizado, no recibido), authorizedPickups, documents e history. Cada inscripción histórica conserva grado, ciclo, estado, documentos y autorizados. La inscripción actual es la abierta más reciente en un ciclo no cerrado. No incluye datos médicos, documentos de identidad sin enmascarar ni rutas privadas de almacenamiento.",
         responses: { "200": { description: "Ficha consolidada en data. Los documentos sin generar tienen estado MISSING." }, "401": errorResponse, "403": errorResponse, "404": errorResponse },
       },
     },
@@ -206,6 +206,21 @@ export const openApiDocument = {
           { name: "excludeId", in: "query", schema: { type: "string", format: "uuid" } },
         ],
         responses: { "200": { description: "Posibles coincidencias en data, primero las de correo o teléfono" }, "400": errorResponse, "401": errorResponse, "403": errorResponse },
+      },
+    },
+    "/api/students/{id}/sponsorships": {
+      get: {
+        tags: ["Padrinos"], summary: "Padrinazgos del alumno", security: [{ bearerAuth: [] }],
+        description: "Requiere sponsor.read. Todos los padrinazgos del alumno (vigentes e históricos) con el padrino y su compromiso: authorizedAmount es el monto autorizado por el padrino, no dinero recibido.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        responses: { "200": { description: "Padrinazgos en data, el más reciente primero" }, "401": errorResponse, "403": errorResponse, "404": errorResponse },
+      },
+      post: {
+        tags: ["Padrinos"], summary: "Asignar un padrino al alumno con su compromiso de donación", security: [{ bearerAuth: [] }],
+        description: "Requiere sponsor.write y donation.write. Crea el padrinazgo en estado PENDING y su compromiso en donation_commitments, en una sola transacción. Responde 409 si el alumno ya tiene el máximo de padrinazgos abiertos (sponsorship.max_open_per_student, hoy 1), si ese padrino ya tiene un padrinazgo vigente con el alumno o si el padrino está inactivo. No acepta datos de tarjeta ni de pago.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/SponsorshipAssignmentInput" } } } },
+        responses: { "201": { description: "Padrinazgo con su compromiso en data" }, "400": errorResponse, "401": errorResponse, "403": errorResponse, "404": errorResponse, "409": errorResponse },
       },
     },
     "/api/sponsors/{id}": {
@@ -504,6 +519,25 @@ export const openApiDocument = {
           email: { type: ["string", "null"], format: "email", maxLength: 254, description: "Se guarda en minúsculas" },
           phone: { type: ["string", "null"], maxLength: 30, description: "Al menos 7 dígitos; se conserva el formato escrito" },
           notes: { type: ["string", "null"], maxLength: 2000 },
+        },
+      },
+      SponsorshipAssignmentInput: {
+        type: "object", additionalProperties: false, required: ["sponsorId", "startDate", "commitment"],
+        properties: {
+          sponsorId: { type: "string", format: "uuid" },
+          startDate: { type: "string", format: "date", description: "Inicio del padrinazgo" },
+          notes: { type: ["string", "null"], maxLength: 2000 },
+          commitment: {
+            type: "object", additionalProperties: false, required: ["amount", "frequency"],
+            description: "Compromiso de donación: monto autorizado por el padrino, no dinero recibido.",
+            properties: {
+              amount: { type: ["string", "number"], description: "Mayor que cero, hasta 2 decimales", examples: ["250.00"] },
+              currency: { type: "string", pattern: "^[A-Z]{3}$", default: "GTQ" },
+              frequency: { type: "string", enum: ["MONTHLY", "ONE_TIME"] },
+              startDate: { type: "string", format: "date", description: "Por defecto, el inicio del padrinazgo; no puede ser anterior" },
+              endDate: { type: ["string", "null"], format: "date", description: "Solo para compromisos mensuales" },
+            },
+          },
         },
       },
       Error: {

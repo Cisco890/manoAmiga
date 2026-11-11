@@ -92,6 +92,13 @@
   gap: var(--space-1);
 }
 
+.plainFieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
 .notice {
   padding: var(--space-3);
   border-radius: var(--radius-sm);

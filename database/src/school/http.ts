@@ -66,6 +66,7 @@ import {
   parseSponsorInput,
   updateSponsor,
 } from "./sponsors";
+import { assignSponsor, listStudentSponsorships, parseAssignmentInput } from "./sponsorshipAssignment";
 import { getStudentPhoto, getStudentSummary } from "./studentSummary";
 import { downloadPrivateObject } from "../storage/supabase-storage";
 
@@ -402,6 +403,23 @@ export async function handleSchoolRoutes(
           principal.schoolId, principal.id, studentPath.id, parseAuthorizedPickups(body.authorizedPickups),
         ));
         sendJson(request, response, 200, { data });
+        return true;
+      }
+      // --- Padrinazgos del alumno (MA-34) ---
+      if (studentPath.tail[0] === "sponsorships" && request.method === "GET") {
+        requirePermission(principal, "sponsor.read");
+        const data = await wrapDomain(() => listStudentSponsorships(principal.schoolId, studentPath.id));
+        sendJson(request, response, 200, { data });
+        return true;
+      }
+      if (studentPath.tail[0] === "sponsorships" && request.method === "POST") {
+        requirePermission(principal, "sponsor.write");
+        requirePermission(principal, "donation.write");
+        const body = await readJson(request);
+        const data = await wrapDomain(async () =>
+          assignSponsor(principal.schoolId, principal.id, studentPath.id, parseAssignmentInput(body)),
+        );
+        sendJson(request, response, 201, { data });
         return true;
       }
       if (studentPath.tail[0] === "guardians" && request.method === "GET") {

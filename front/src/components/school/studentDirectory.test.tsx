@@ -20,7 +20,7 @@ const dossier: StudentSummary = {
   student, photo: null,
   currentEnrollment: { id: 'enrollment-1', status: 'APPROVED', academicCycle: cycle, grade },
   responsible: { id: 'guardian-1', fullName: 'María López', relationship: 'MOTHER', customRelationship: null, phone: '5555-9876', primaryContact: true, legalRepresentative: true },
-  guardians: [], sponsors: [{ id: 'sponsor-1', sponsorshipId: 'sponsorship-1', fullName: 'José Solidario', startDate: '2025-01-15' }],
+  guardians: [], sponsors: [{ id: 'sponsor-1', sponsorshipId: 'sponsorship-1', fullName: 'José Solidario', startDate: '2025-01-15', status: 'ACTIVE', commitment: null }],
   authorizedPickups: [pickup], maxAuthorizedPickups: 3,
   documents: [
     { type: 'ENROLLMENT_FORM', status: 'SIGNED', id: 'doc-1', generatedAt: '2026-01-20' },

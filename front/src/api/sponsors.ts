@@ -43,6 +43,23 @@ export type Sponsor = {
   createdAt: string;
 };
 
+export type DonationFrequency = 'MONTHLY' | 'ONE_TIME';
+export type DonationStatus = 'PENDING' | 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELLED';
+
+/**
+ * Compromiso de donación (MA-34). `authorizedAmount` es lo que el padrino autorizó aportar; no
+ * es dinero recibido. Llega como texto con dos decimales para no perder precisión.
+ */
+export type SponsorshipCommitment = {
+  id: string;
+  authorizedAmount: string;
+  currency: string;
+  frequency: DonationFrequency;
+  startDate: string;
+  endDate: string | null;
+  status: DonationStatus;
+};
+
 export type SponsorshipSummary = {
   id: string;
   status: SponsorshipStatus;
@@ -50,6 +67,19 @@ export type SponsorshipSummary = {
   endDate: string | null;
   notes: string | null;
   student: { id: string; studentCode: string; fullName: string };
+  commitment: SponsorshipCommitment | null;
+};
+
+/** Padrinazgo visto desde el alumno. */
+export type StudentSponsorship = Omit<SponsorshipSummary, 'student'> & {
+  sponsor: { id: string; fullName: string; contactName: string | null; active: boolean };
+};
+
+export type SponsorshipAssignmentInput = {
+  sponsorId: string;
+  startDate: string;
+  notes?: string | null;
+  commitment: { amount: string; currency?: string; frequency: DonationFrequency; startDate?: string; endDate?: string | null };
 };
 
 export type SponsorListItem = Sponsor & { openSponsorships: SponsorshipSummary[] };
@@ -106,4 +136,13 @@ export async function updateSponsor(request: AuthenticatedRequest, sponsorId: st
 
 export async function deactivateSponsor(request: AuthenticatedRequest, sponsorId: string) {
   return parseResponse<{ data: SponsorDetail }>(await request(`/sponsors/${sponsorId}`, { method: 'DELETE' }));
+}
+
+export async function listStudentSponsorships(request: AuthenticatedRequest, studentId: string, signal?: AbortSignal) {
+  return parseResponse<{ data: StudentSponsorship[] }>(await request(`/students/${studentId}/sponsorships`, { signal }));
+}
+
+/** Asigna el padrino al alumno con su compromiso (MA-34). El padrinazgo queda Pendiente. */
+export async function assignSponsor(request: AuthenticatedRequest, studentId: string, input: SponsorshipAssignmentInput) {
+  return parseResponse<{ data: StudentSponsorship }>(await request(`/students/${studentId}/sponsorships`, jsonInit('POST', input)));
 }

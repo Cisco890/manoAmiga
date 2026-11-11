@@ -3,7 +3,9 @@ import { UserRound, X } from 'lucide-react';
 import { getStudentSummary, saveStudentPickups, type AuthorizedPickup, type DocumentSummary, type StudentSummary } from '../../api/school.ts';
 import { useAuth } from '../../auth/useAuth.ts';
 import { formatDate } from '../../lib/dates.ts';
-import { enrollmentStatusLabels, studentStatusLabels } from '../../lib/labels.ts';
+import { enrollmentStatusLabels, sponsorshipStatusLabels, studentStatusLabels } from '../../lib/labels.ts';
+import { describeCommitment } from '../../lib/money.ts';
+import { AssignSponsorModal } from '../sponsors/AssignSponsorModal.tsx';
 import { StudentAddressPanel } from './AddressForm.tsx';
 import { GuardiansPanel } from './GuardiansPanel.tsx';
 import { MedicalProfileSection } from './MedicalProfileSection.tsx';
@@ -56,6 +58,8 @@ export function StudentSummaryModal({ studentId, onClose }: { studentId: string;
   const [saveError, setSaveError] = useState('');
   const [notice, setNotice] = useState('');
   const [managingGuardians, setManagingGuardians] = useState(false);
+  const [assigningSponsor, setAssigningSponsor] = useState(false);
+  const [sponsorNotice, setSponsorNotice] = useState('');
   const closeButton = useRef<HTMLButtonElement>(null);
   const dialog = useRef<HTMLDivElement>(null);
   const mounted = useRef(true);
@@ -142,7 +146,14 @@ export function StudentSummaryModal({ studentId, onClose }: { studentId: string;
               </section> : null}
               <section className={styles.section} aria-labelledby="student-sponsors-title">
                 <h3 id="student-sponsors-title">Padrino</h3>
-                {summary.sponsors.length ? <ul className={styles.list}>{summary.sponsors.map((sponsor) => <li key={sponsor.sponsorshipId}>{sponsor.fullName}<br /><span className={styles.muted}>Desde {formatDate(sponsor.startDate)}</span></li>)}</ul> : <p className={styles.muted}>Sin padrino activo.</p>}
+                {summary.sponsors.length ? <ul className={styles.list}>{summary.sponsors.map((sponsor) => <li key={sponsor.sponsorshipId}>
+                  {sponsor.fullName} <span className={shared.badge}>Padrinazgo {sponsorshipStatusLabels[sponsor.status].toLowerCase()}</span><br />
+                  <span className={styles.muted}>{describeCommitment(sponsor.commitment)} · Desde {formatDate(sponsor.startDate)}</span>
+                </li>)}</ul> : <p className={styles.muted}>Sin padrino asignado.</p>}
+                {/* MA-34: un padrino por alumno en la UI; el backend aplica el cupo configurable. */}
+                {!summary.sponsors.length && can('sponsor.write') && can('donation.write')
+                  ? <button type="button" className="btn" onClick={() => setAssigningSponsor(true)}>Asignar padrino</button> : null}
+                {sponsorNotice ? <p role="status">{sponsorNotice}</p> : null}
               </section>
               <section className={styles.section} aria-labelledby="student-documents-title">
                 <h3 id="student-documents-title">Estado de documentos</h3>
@@ -197,5 +208,12 @@ export function StudentSummaryModal({ studentId, onClose }: { studentId: string;
           </>}
       </div>
     </div>
+    {assigningSponsor && summary ? <AssignSponsorModal studentId={studentId} studentName={summary.student.fullName}
+      onClose={() => setAssigningSponsor(false)}
+      onAssigned={() => {
+        setAssigningSponsor(false);
+        setSponsorNotice('Padrino asignado. El padrinazgo queda pendiente de activación.');
+        setRetry((value) => value + 1);
+      }} /> : null}
   </div>;
 }

@@ -15,7 +15,7 @@ const baseSponsor = {
 const existing: SponsorListItem = {
   ...baseSponsor, id: 'sponsor-1', fullName: 'José Solidario', email: 'jose@example.test', phone: '5555-1234',
   openSponsorships: [{ id: 'sp-1', status: 'ACTIVE', startDate: '2026-01-15', endDate: null, notes: null,
-    student: { id: 'student-1', studentCode: 'MA-2026-00001', fullName: 'Ana Pérez' } }],
+    student: { id: 'student-1', studentCode: 'MA-2026-00001', fullName: 'Ana Pérez' }, commitment: null }],
 };
 const match: SponsorMatch = { ...existing, reasons: ['name', 'phone'] };
 const detail = (sponsor: SponsorListItem): SponsorDetail => {

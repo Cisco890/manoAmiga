@@ -10,6 +10,8 @@ export type PermissionCode =
   | 'enrollment.approve'
   | 'sponsor.read'
   | 'sponsor.write'
+  | 'donation.read'
+  | 'donation.write'
   | 'document.generate'
   | 'document.print'
   | 'user.manage'

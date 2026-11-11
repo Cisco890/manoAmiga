@@ -1,5 +1,6 @@
 import { ApiError } from '../auth/api.ts';
 import type { AuthenticatedRequest } from './users.ts';
+import type { SponsorshipCommitment, SponsorshipStatus } from './sponsors.ts';
 
 async function parseResponse<T>(response: Response): Promise<T> {
   if (response.ok) return (await response.json()) as T;
@@ -133,7 +134,11 @@ export type StudentSummary = {
     phone: string | null; primaryContact: boolean; legalRepresentative: boolean;
   } | null;
   guardians: Array<NonNullable<StudentSummary['responsible']>>;
-  sponsors: Array<{ id: string; sponsorshipId: string; fullName: string; startDate: string }>;
+  /** Padrinazgos vigentes (pendientes, activos o pausados) con su compromiso autorizado (MA-34). */
+  sponsors: Array<{
+    id: string; sponsorshipId: string; fullName: string; startDate: string;
+    status: SponsorshipStatus; commitment: SponsorshipCommitment | null;
+  }>;
   authorizedPickups: AuthorizedPickup[];
   maxAuthorizedPickups: number;
   documents: DocumentSummary[];

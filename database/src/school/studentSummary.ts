@@ -3,6 +3,8 @@ import { prisma } from "../prisma";
 import { addressSelect, publicAddress } from "./addresses";
 import { maxAuthorizedPickups, pickupSelect } from "./authorizedPickups";
 import { buildFullName } from "./personName";
+import { commitmentSelect, publicCommitment, sponsorDisplayName } from "./sponsors";
+import { OPEN_SPONSORSHIP_STATUSES } from "./sponsorships";
 import { currentEnrollmentOrder, getStudent } from "./students";
 
 const documentTypes: DocumentType[] = ["ENROLLMENT_FORM", "STUDENT_ID_CARD", "SPONSOR_AUTHORIZATION"];
@@ -34,13 +36,16 @@ export async function getStudentSummary(schoolId: string, studentId: string) {
         select: { relationship: true, customRelationship: true, primaryContact: true, legalRepresentative: true,
           guardian: { select: { id: true, givenNames: true, firstSurname: true, secondSurname: true, mobilePhone: true, homePhone: true } } },
       },
+      // MA-34: padrinazgos vigentes (pendientes, activos o pausados) que no han terminado, con su
+      // compromiso autorizado. Un padrinazgo recién asignado aparece como Pendiente.
       sponsorships: {
-        where: { status: "ACTIVE", startDate: { lte: today }, OR: [{ endDate: null }, { endDate: { gte: today } }],
-          sponsor: { active: true, deletedAt: null } },
+        where: { status: { in: [...OPEN_SPONSORSHIP_STATUSES] }, OR: [{ endDate: null }, { endDate: { gte: today } }],
+          sponsor: { deletedAt: null } },
         orderBy: { startDate: "desc" },
-        select: { id: true, startDate: true, endDate: true,
+        select: { id: true, status: true, startDate: true, endDate: true,
           sponsor: { select: { id: true, type: true, givenNames: true, firstSurname: true, secondSurname: true, organizationName: true } },
           documents: { select: documentSelect },
+          donations: commitmentSelect,
         },
       },
       enrollments: {
@@ -77,8 +82,9 @@ export async function getStudentSummary(schoolId: string, studentId: string) {
     } : null),
     guardians,
     sponsors: row.sponsorships.map((s) => ({
-      id: s.sponsor.id, sponsorshipId: s.id, startDate: s.startDate.toISOString().slice(0, 10),
-      fullName: s.sponsor.organizationName || buildFullName(s.sponsor.givenNames, s.sponsor.firstSurname, s.sponsor.secondSurname),
+      id: s.sponsor.id, sponsorshipId: s.id, status: s.status, startDate: s.startDate.toISOString().slice(0, 10),
+      fullName: sponsorDisplayName(s.sponsor),
+      commitment: publicCommitment(s.donations[0]),
     })),
     authorizedPickups: row.authorizedPickups,
     maxAuthorizedPickups,

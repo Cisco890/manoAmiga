@@ -156,6 +156,35 @@ function sponsorWriteData(input: SponsorInput, existing?: SponsorRow) {
   return { ...input, type, searchName };
 }
 
+/** Compromiso de donación vigente del padrinazgo (MA-34): el más reciente que no esté cancelado. */
+export const commitmentSelect = {
+  where: { status: { not: "CANCELLED" as const } },
+  orderBy: { createdAt: "desc" as const },
+  take: 1,
+  select: { id: true, amount: true, currency: true, frequency: true, startDate: true, endDate: true, status: true },
+};
+
+type CommitmentRow = Prisma.DonationCommitmentGetPayload<{ select: typeof commitmentSelect.select }>;
+
+const dateOnly = (date: Date | null) => (date ? date.toISOString().slice(0, 10) : null);
+
+/**
+ * El compromiso es un monto **autorizado** por el padrino, no dinero recibido: por eso se expone
+ * como `authorizedAmount` (texto con dos decimales, sin pérdida de precisión).
+ */
+export function publicCommitment(row: CommitmentRow | undefined) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    authorizedAmount: row.amount.toFixed(2),
+    currency: row.currency,
+    frequency: row.frequency,
+    startDate: dateOnly(row.startDate)!,
+    endDate: dateOnly(row.endDate),
+    status: row.status,
+  };
+}
+
 const sponsorshipSummarySelect = {
   id: true,
   status: true,
@@ -163,11 +192,10 @@ const sponsorshipSummarySelect = {
   endDate: true,
   notes: true,
   student: { select: { id: true, studentCode: true, givenNames: true, firstSurname: true, secondSurname: true } },
+  donations: commitmentSelect,
 } as const satisfies Prisma.SponsorshipSelect;
 
 type SponsorshipSummaryRow = Prisma.SponsorshipGetPayload<{ select: typeof sponsorshipSummarySelect }>;
-
-const dateOnly = (date: Date | null) => (date ? date.toISOString().slice(0, 10) : null);
 
 export function sponsorDisplayName(row: Pick<SponsorRow, "type" | "givenNames" | "firstSurname" | "secondSurname" | "organizationName">) {
   const personName = buildFullName(row.givenNames, row.firstSurname, row.secondSurname);
@@ -196,6 +224,7 @@ export function publicSponsorship(row: SponsorshipSummaryRow) {
       studentCode: row.student.studentCode,
       fullName: buildFullName(row.student.givenNames, row.student.firstSurname, row.student.secondSurname),
     },
+    commitment: publicCommitment(row.donations[0]),
   };
 }
 

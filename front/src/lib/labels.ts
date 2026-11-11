@@ -7,7 +7,12 @@ import type {
   StudentStatus,
 } from '../api/school.ts';
 import type { GuardianRelationship } from '../api/guardians.ts';
-import type { SponsorMatchReason, SponsorshipStatus, SponsorType } from '../api/sponsors.ts';
+import type { DonationFrequency, SponsorMatchReason, SponsorshipStatus, SponsorType } from '../api/sponsors.ts';
+
+export const donationFrequencyLabels: Record<DonationFrequency, string> = {
+  MONTHLY: 'Mensual',
+  ONE_TIME: 'Única vez',
+};
 
 export const sponsorTypeLabels: Record<SponsorType, string> = {
   INDIVIDUAL: 'Persona',

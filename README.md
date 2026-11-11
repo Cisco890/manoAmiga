@@ -469,6 +469,34 @@ primer alumno o, si no tienen alumnos, el primer colegio registrado.
 
 Las pruebas están en `database/test/sponsors.test.ts` y `front/src/components/sponsors/sponsors.test.tsx`.
 
+### Asignar un padrino con su compromiso de donación
+
+Desde la **ficha del alumno**, sección **Padrino**, el botón **Asignar padrino** (requiere
+`sponsor.write` y `donation.write`) abre un formulario en dos pasos:
+
+1. **Padrino:** buscar uno registrado o registrar uno nuevo (con la sugerencia de duplicados).
+2. **Compromiso:** fecha de inicio, frecuencia (mensual o única vez) y monto.
+
+En una sola transacción se crea el padrinazgo en estado **Pendiente** y su compromiso en
+`donation_commitments`, vinculado al padrinazgo. Se aplica la regla de un padrino por alumno: un
+segundo padrino responde 409 hasta que el primero se finalice o se cancele.
+
+**El compromiso no es dinero recibido.** Es el monto que el padrino **autorizó** aportar. Por eso
+la API lo expone como `authorizedAmount`, un texto con dos decimales (`"250.00"`), y la interfaz
+siempre dice «Compromiso mensual autorizado». Este flujo no acepta datos de tarjeta, referencia
+ni proveedor de pago: la API responde 400 si se envían.
+
+La ficha muestra los padrinazgos pendientes, activos o pausados con su compromiso. Los
+finalizados se conservan en `GET /api/students/:id/sponsorships` y en el detalle del padrino.
+
+| Endpoint | Permiso | Resultado |
+| --- | --- | --- |
+| `GET /api/students/:id/sponsorships` | `sponsor.read` | Padrinazgos del alumno, vigentes e históricos, con su compromiso. |
+| `POST /api/students/:id/sponsorships` | `sponsor.write` + `donation.write` | Asigna el padrino y crea el compromiso (estado `PENDING`). |
+
+Las pruebas están en `database/test/sponsorship-assignment.test.ts` y
+`front/src/components/sponsors/assignSponsor.test.tsx`.
+
 ## Inscripciones
 
 Flujo de estados: Borrador → Pendiente de revisión → Incompleta/Aprobada → Cerrada. Un cambio de grado en el mismo ciclo cierra la inscripción anterior y crea una nueva, para conservar el historial.
